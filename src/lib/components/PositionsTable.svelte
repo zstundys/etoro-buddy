@@ -347,7 +347,7 @@
 		</div>
 	{:else if isByDate}
 	<div class="overflow-x-auto">
-	<div class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2">
+	<div class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2">
 		<div class="col-span-full grid grid-cols-subgrid h-0 min-h-0 overflow-hidden" aria-hidden="true">
 			<div class="pl-5 pr-3 text-xs">Jan 00, 0000</div>
 			<div class="px-3 text-xs">TICKER</div>
@@ -358,7 +358,8 @@
 			<div class="px-3 text-right text-xs tabular-nums">$0,000.00</div>
 			<div class="px-3 text-right text-xs tabular-nums">+$0,000.00</div>
 			<div class="px-3 text-right text-xs tabular-nums">+$0,000.00</div>
-			<div class="px-3 pr-5 text-right text-xs tabular-nums">+00.00%</div>
+			<div class="px-3 text-right text-xs tabular-nums">+00.00%</div>
+			<div class="px-3 pr-5 text-right text-xs tabular-nums">$0,000.00</div>
 		</div>
 		{#each dateGrouped as month (month.key)}
 			{@const monthId = `date::${month.key}`}
@@ -399,11 +400,15 @@
 							{pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
 						</p>
 					</div>
-					<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-sm">
+					<div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L %</p>
 						<p class="font-medium {pnlColor(monthPnlPercent)}">
 							{pnlSign(monthPnlPercent)}{pctFmt.format(monthPnlPercent)}%
 						</p>
+					</div>
+					<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-sm">
+						<p class="text-xs text-text-secondary">Total</p>
+						<p class="font-medium">{fmt.format(month.totalAmount + month.totalPnl)}</p>
 					</div>
 				</button>
 
@@ -419,7 +424,8 @@
 							<div class="px-3 py-2 text-right">Current</div>
 							<div class="px-3 py-2 text-right">Fees / Div</div>
 							<div class="px-3 py-2 text-right">P&L</div>
-							<div class="px-3 py-2 pr-5 text-right">P&L %</div>
+							<div class="px-3 py-2 text-right">P&L %</div>
+							<div class="px-3 py-2 pr-5 text-right">Total</div>
 						</div>
 						{#each month.positions as pos, i (pos.positionId || i)}
 							{@const sym = normalizeSymbol(pos.symbol ?? `#${pos.instrumentId}`)}
@@ -456,8 +462,11 @@
 								<div class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(pos.pnl)}">
 									{pos.pnl !== undefined ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}` : '—'}
 								</div>
-								<div class="px-3 py-2 pr-5 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
+								<div class="px-3 py-2 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
 									{pos.pnlPercent !== undefined ? `${pnlSign(pos.pnlPercent)}${pctFmt.format(pos.pnlPercent)}%` : '—'}
+								</div>
+								<div class="px-3 py-2 pr-5 text-right tabular-nums font-medium">
+									{fmt.format(pos.amount + (pos.pnl ?? 0))}
 								</div>
 							</div>
 						{/each}
@@ -469,7 +478,7 @@
 	</div>
 	{:else}
 	<div class="overflow-x-auto">
-	<div class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2">
+	<div class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2">
 		<div class="col-span-full grid grid-cols-subgrid h-0 min-h-0 overflow-hidden" aria-hidden="true">
 			<div class="pl-16 pr-3 text-xs">Jan 00, 0000</div>
 			<div class="px-3 text-xs">SELL</div>
@@ -479,7 +488,8 @@
 			<div class="px-3 text-right text-xs tabular-nums">$0,000.00</div>
 			<div class="px-3 text-right text-xs tabular-nums">+$0,000.00</div>
 			<div class="px-3 text-right text-xs tabular-nums">+$0,000.00</div>
-			<div class="px-3 pr-5 text-right text-xs tabular-nums">+00.00%</div>
+			<div class="px-3 text-right text-xs tabular-nums">+00.00%</div>
+			<div class="px-3 pr-5 text-right text-xs tabular-nums">$0,000.00</div>
 		</div>
 		{#each grouped as group (group.symbol)}
 			{@const symbolExpanded = expandedSymbols.has(group.symbol)}
@@ -531,11 +541,15 @@
 							{pnlSign(group.totalPnl)}{fmt.format(group.totalPnl)}
 						</p>
 					</div>
-					<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-sm">
+					<div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L %</p>
 						<p class="font-medium {pnlColor(groupPnlPercent)}">
 							{pnlSign(groupPnlPercent)}{pctFmt.format(groupPnlPercent)}%
 						</p>
+					</div>
+					<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-sm">
+						<p class="text-xs text-text-secondary">Total</p>
+						<p class="font-medium">{fmt.format(group.totalAmount + group.totalPnl)}</p>
 					</div>
 				</button>
 
@@ -573,8 +587,11 @@
 									<div class="min-w-24 whitespace-nowrap px-4 text-right text-xs {pnlColor(month.totalPnl)}">
 										{pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
 									</div>
-									<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-xs {pnlColor(monthPnlPercent)}">
+									<div class="min-w-24 whitespace-nowrap px-4 text-right text-xs {pnlColor(monthPnlPercent)}">
 										{pnlSign(monthPnlPercent)}{pctFmt.format(monthPnlPercent)}%
+									</div>
+									<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-xs font-medium">
+										{fmt.format(month.totalAmount + month.totalPnl)}
 									</div>
 								</button>
 
@@ -589,7 +606,8 @@
 											<div class="px-3 py-2 text-right">Current</div>
 											<div class="px-3 py-2 text-right">Fees / Div</div>
 											<div class="px-3 py-2 text-right">P&L</div>
-											<div class="px-3 py-2 pr-5 text-right">P&L %</div>
+											<div class="px-3 py-2 text-right">P&L %</div>
+											<div class="px-3 py-2 pr-5 text-right">Total</div>
 										</div>
 										{#each month.positions as pos, i (pos.positionId || i)}
 											<div class="col-span-full grid grid-cols-subgrid border-b border-border/20 last:border-b-0 transition-colors hover:bg-surface-overlay/20">
@@ -613,8 +631,11 @@
 												<div class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(pos.pnl)}">
 													{pos.pnl !== undefined ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}` : '—'}
 												</div>
-												<div class="px-3 py-2 pr-5 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
+												<div class="px-3 py-2 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
 													{pos.pnlPercent !== undefined ? `${pnlSign(pos.pnlPercent)}${pctFmt.format(pos.pnlPercent)}%` : '—'}
+												</div>
+												<div class="px-3 py-2 pr-5 text-right tabular-nums font-medium">
+													{fmt.format(pos.amount + (pos.pnl ?? 0))}
 												</div>
 											</div>
 										{/each}
