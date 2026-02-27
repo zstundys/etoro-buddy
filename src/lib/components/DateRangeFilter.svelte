@@ -245,11 +245,9 @@
 			{qp.label}
 		</button>
 	{/each}
-	{#if isFiltered}
-		<span class="ml-1 text-[10px] text-text-secondary">
-			{dateFmt.format(startDate)} – {dateFmt.format(endDate)}
-		</span>
-	{/if}
+	<span class="ml-1 text-[10px] text-text-secondary">
+		{dateFmt.format(startDate)} – {dateFmt.format(endDate)}
+	</span>
 </div>
 {:else}
 <div class="overflow-x-auto rounded-xl border border-border bg-surface-raised px-5 py-4">
