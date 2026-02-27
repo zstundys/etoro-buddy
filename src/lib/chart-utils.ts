@@ -2,15 +2,20 @@ import * as d3 from 'd3';
 import { normalizeSymbol } from '$lib/format';
 import type { EnrichedPosition } from '$lib/etoro';
 
+function cssVar(name: string, fallback: string): string {
+	if (typeof document === 'undefined') return fallback;
+	return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
 export const COLORS = {
-	gain: '#22c55e',
-	loss: '#ef4444',
-	brand: '#6dc77a',
-	border: '#2a2d3e',
-	surface: '#181a24',
-	surfaceOverlay: '#1e2130',
-	textPrimary: '#e8eaed',
-	textSecondary: '#9ca3af'
+	get gain() { return cssVar('--color-gain', '#22c55e'); },
+	get loss() { return cssVar('--color-loss', '#ef4444'); },
+	get brand() { return cssVar('--color-brand', '#6dc77a'); },
+	get border() { return cssVar('--color-border', '#2a2d3e'); },
+	get surface() { return cssVar('--color-surface-raised', '#181a24'); },
+	get surfaceOverlay() { return cssVar('--color-surface-overlay', '#1e2130'); },
+	get textPrimary() { return cssVar('--color-text-primary', '#e8eaed'); },
+	get textSecondary() { return cssVar('--color-text-secondary', '#9ca3af'); },
 };
 
 export const pnlColorScale = d3
