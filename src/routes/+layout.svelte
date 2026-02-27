@@ -7,7 +7,7 @@
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>eToro Portfolio</title>
+	<title>eToro Buddy</title>
 </svelte:head>
 
 <div class="min-h-screen bg-surface text-text-primary">
