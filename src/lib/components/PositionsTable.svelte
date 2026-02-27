@@ -363,7 +363,7 @@
 							{month.positions.length}
 						</span>
 					</div>
-					<div class="px-4 text-right text-sm">
+					<div class="whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">Fees / Div</p>
 						{#if month.totalFees !== 0}
 							<p class="font-medium {month.totalFees < 0 ? 'text-gain' : 'text-loss'}">
@@ -373,17 +373,17 @@
 							<p class="font-medium text-text-secondary">—</p>
 						{/if}
 					</div>
-					<div class="px-4 text-right text-sm">
+					<div class="whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">Invested</p>
 						<p class="font-medium">{fmt.format(month.totalAmount)}</p>
 					</div>
-					<div class="px-4 text-right text-sm">
+					<div class="whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L</p>
 						<p class="font-medium {pnlColor(month.totalPnl)}">
 							{pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
 						</p>
 					</div>
-					<div class="pl-4 pr-5 text-right text-sm">
+					<div class="whitespace-nowrap pl-4 pr-5 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L %</p>
 						<p class="font-medium {pnlColor(monthPnlPercent)}">
 							{pnlSign(monthPnlPercent)}{pctFmt.format(monthPnlPercent)}%
@@ -412,9 +412,9 @@
 								{#each month.positions as pos, i (pos.positionId || i)}
 									{@const sym = normalizeSymbol(pos.symbol ?? `#${pos.instrumentId}`)}
 									<tr class="transition-colors hover:bg-surface-overlay/20">
-										<td class="py-2 pl-5 pr-3 text-text-secondary">
-											{dateFmt.format(new Date(pos.openDateTime))}
-										</td>
+<td class="whitespace-nowrap py-2 pl-5 pr-3 text-text-secondary">
+										{dateFmt.format(new Date(pos.openDateTime))}
+									</td>
 										<td class="px-3 py-2">
 											<div class="flex items-center gap-2">
 												{#if pos.logoUrl}
@@ -479,7 +479,7 @@
 								{group.symbol.slice(0, 2)}
 							</div>
 						{/if}
-						<div class="min-w-0">
+						<div class="min-w-0 whitespace-nowrap">
 							<span class="text-sm font-semibold">{group.symbol}</span>
 							{#if group.displayName}
 								<span class="ml-2 text-xs text-text-secondary">{group.displayName}</span>
@@ -489,7 +489,7 @@
 							{group.positionCount}
 						</span>
 					</div>
-					<div class="px-4 text-right text-sm">
+					<div class="whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">Fees / Div</p>
 						{#if group.totalFees !== 0}
 							<p class="font-medium {group.totalFees < 0 ? 'text-gain' : 'text-loss'}">
@@ -499,17 +499,17 @@
 							<p class="font-medium text-text-secondary">—</p>
 						{/if}
 					</div>
-					<div class="px-4 text-right text-sm">
+					<div class="whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">Invested</p>
 						<p class="font-medium">{fmt.format(group.totalAmount)}</p>
 					</div>
-					<div class="px-4 text-right text-sm">
+					<div class="whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L</p>
 						<p class="font-medium {pnlColor(group.totalPnl)}">
 							{pnlSign(group.totalPnl)}{fmt.format(group.totalPnl)}
 						</p>
 					</div>
-					<div class="pl-4 pr-5 text-right text-sm">
+					<div class="whitespace-nowrap pl-4 pr-5 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L %</p>
 						<p class="font-medium {pnlColor(groupPnlPercent)}">
 							{pnlSign(groupPnlPercent)}{pctFmt.format(groupPnlPercent)}%
@@ -531,11 +531,11 @@
 										<svg class="h-3.5 w-3.5 shrink-0 text-text-secondary transition-transform {monthExpanded ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 											<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
 										</svg>
-										<span class="text-xs font-medium text-text-secondary">{monthLabel(month.key)}
+										<span class="whitespace-nowrap text-xs font-medium text-text-secondary">{monthLabel(month.key)}
 											<span class="ml-1 rounded-full bg-surface-overlay px-2 py-0.5 text-[10px]">{month.positions.length}</span>
 										</span>
 									</div>
-									<div class="px-4 text-right text-xs">
+									<div class="whitespace-nowrap px-4 text-right text-xs">
 										{#if month.totalFees !== 0}
 											<span class="{month.totalFees < 0 ? 'text-gain' : 'text-loss'}">
 												{month.totalFees < 0 ? '+' : ''}{fmt.format(Math.abs(month.totalFees))}
@@ -544,13 +544,13 @@
 											<span class="text-text-secondary">—</span>
 										{/if}
 									</div>
-									<div class="px-4 text-right text-xs">
+									<div class="whitespace-nowrap px-4 text-right text-xs">
 										{fmt.format(month.totalAmount)}
 									</div>
-									<div class="px-4 text-right text-xs {pnlColor(month.totalPnl)}">
+									<div class="whitespace-nowrap px-4 text-right text-xs {pnlColor(month.totalPnl)}">
 										{pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
 									</div>
-									<div class="pl-4 pr-5 text-right text-xs {pnlColor(monthPnlPercent)}">
+									<div class="whitespace-nowrap pl-4 pr-5 text-right text-xs {pnlColor(monthPnlPercent)}">
 										{pnlSign(monthPnlPercent)}{pctFmt.format(monthPnlPercent)}%
 									</div>
 								</button>
@@ -574,7 +574,7 @@
 											<tbody class="divide-y divide-border/20">
 												{#each month.positions as pos, i (pos.positionId || i)}
 													<tr class="transition-colors hover:bg-surface-overlay/20">
-														<td class="py-2 pl-16 pr-3 text-text-secondary">
+														<td class="whitespace-nowrap py-2 pl-16 pr-3 text-text-secondary">
 															{dateFmt.format(new Date(pos.openDateTime))}
 														</td>
 														<td class="px-3 py-2">

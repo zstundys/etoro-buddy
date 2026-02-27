@@ -269,7 +269,7 @@
 				href={accountStatementUrl}
 				target="_blank"
 				rel="noopener noreferrer"
-				class="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
+				class="whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
 			>
 				Account statement ↗
 			</a>
