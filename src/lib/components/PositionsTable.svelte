@@ -62,6 +62,29 @@
 		return monthFmt.format(new Date(Number(y), Number(m) - 1));
 	}
 
+	type SortField = 'invested' | 'date' | 'pnl' | 'pnlPct' | 'fees';
+	type SortDir = 'asc' | 'desc';
+
+	let sortField = $state<SortField>('invested');
+	let sortDir = $state<SortDir>('desc');
+
+	function toggleSort(field: SortField) {
+		if (sortField === field) {
+			sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+		} else {
+			sortField = field;
+			sortDir = 'desc';
+		}
+	}
+
+	const sortOptions: { field: SortField; label: string }[] = [
+		{ field: 'invested', label: 'Invested' },
+		{ field: 'date', label: 'Date' },
+		{ field: 'pnl', label: 'P&L' },
+		{ field: 'pnlPct', label: 'P&L %' },
+		{ field: 'fees', label: 'Fees' }
+	];
+
 	type MonthGroup = { key: string; positions: EnrichedPosition[]; totalAmount: number; totalPnl: number; totalFees: number };
 	type SymbolGroup = {
 		symbol: string;
@@ -72,9 +95,51 @@
 		totalPnl: number;
 		totalFees: number;
 		positionCount: number;
+		earliestDate: string;
 	};
 
-	function groupPositions(items: EnrichedPosition[]): SymbolGroup[] {
+	function posValue(p: EnrichedPosition, field: SortField): number {
+		switch (field) {
+			case 'invested': return p.amount;
+			case 'date': return new Date(p.openDateTime).getTime();
+			case 'pnl': return p.pnl ?? 0;
+			case 'pnlPct': return p.pnlPercent ?? 0;
+			case 'fees': return Math.abs(p.totalFees);
+		}
+	}
+
+	function monthValue(m: MonthGroup, field: SortField): number | string {
+		switch (field) {
+			case 'invested': return m.totalAmount;
+			case 'date': return m.key;
+			case 'pnl': return m.totalPnl;
+			case 'pnlPct': return m.totalAmount > 0 ? m.totalPnl / m.totalAmount : 0;
+			case 'fees': return Math.abs(m.totalFees);
+		}
+	}
+
+	function groupValue(g: SymbolGroup, field: SortField): number | string {
+		switch (field) {
+			case 'invested': return g.totalAmount;
+			case 'date': return g.earliestDate;
+			case 'pnl': return g.totalPnl;
+			case 'pnlPct': return g.totalAmount > 0 ? g.totalPnl / g.totalAmount : 0;
+			case 'fees': return Math.abs(g.totalFees);
+		}
+	}
+
+	function cmp(a: number | string, b: number | string, dir: SortDir, zeroIsEmpty = false): number {
+		if (zeroIsEmpty) {
+			const aEmpty = a === 0 || a === '';
+			const bEmpty = b === 0 || b === '';
+			if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+		}
+		const d = dir === 'desc' ? -1 : 1;
+		if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b) * d;
+		return ((a as number) - (b as number)) * d;
+	}
+
+	function groupPositions(items: EnrichedPosition[], sf: SortField, sd: SortDir): SymbolGroup[] {
 		const bySymbol = new Map<string, EnrichedPosition[]>();
 		for (const pos of items) {
 			const raw = pos.symbol ?? `#${pos.instrumentId}`;
@@ -83,6 +148,7 @@
 			bySymbol.get(key)!.push(pos);
 		}
 
+		const emptyLast = sf === 'fees';
 		const groups: SymbolGroup[] = [];
 		for (const [symbol, symbolPositions] of bySymbol) {
 			const byMonth = new Map<string, EnrichedPosition[]>();
@@ -93,14 +159,19 @@
 			}
 
 			const months: MonthGroup[] = [...byMonth.entries()]
-				.sort(([a], [b]) => b.localeCompare(a))
 				.map(([key, pos]) => ({
 					key,
-					positions: pos,
+					positions: pos.sort((a, b) => cmp(posValue(a, sf), posValue(b, sf), sd, emptyLast)),
 					totalAmount: pos.reduce((s, p) => s + p.amount, 0),
 					totalPnl: pos.reduce((s, p) => s + (p.pnl ?? 0), 0),
 					totalFees: pos.reduce((s, p) => s + p.totalFees, 0)
-				}));
+				}))
+				.sort((a, b) => cmp(monthValue(a, sf), monthValue(b, sf), sd, emptyLast));
+
+			let earliest = '';
+			for (const p of symbolPositions) {
+				if (!earliest || p.openDateTime < earliest) earliest = p.openDateTime;
+			}
 
 			groups.push({
 				symbol,
@@ -110,14 +181,45 @@
 				totalAmount: symbolPositions.reduce((s, p) => s + p.amount, 0),
 				totalPnl: symbolPositions.reduce((s, p) => s + (p.pnl ?? 0), 0),
 				totalFees: symbolPositions.reduce((s, p) => s + p.totalFees, 0),
-				positionCount: symbolPositions.length
+				positionCount: symbolPositions.length,
+				earliestDate: earliest
 			});
 		}
 
-		return groups.sort((a, b) => b.totalAmount - a.totalAmount);
+		return groups.sort((a, b) => cmp(groupValue(a, sf), groupValue(b, sf), sd, emptyLast));
 	}
 
-	const grouped = $derived(groupPositions(filteredPositions));
+	const grouped = $derived(groupPositions(filteredPositions, sortField, sortDir));
+
+	type DateMonthGroup = {
+		key: string;
+		positions: EnrichedPosition[];
+		totalAmount: number;
+		totalPnl: number;
+		totalFees: number;
+	};
+
+	function groupByDate(items: EnrichedPosition[], sd: SortDir): DateMonthGroup[] {
+		const byMonth = new Map<string, EnrichedPosition[]>();
+		for (const pos of items) {
+			const mk = monthKey(pos.openDateTime);
+			if (!byMonth.has(mk)) byMonth.set(mk, []);
+			byMonth.get(mk)!.push(pos);
+		}
+
+		return [...byMonth.entries()]
+			.map(([key, pos]) => ({
+				key,
+				positions: pos.sort((a, b) => cmp(posValue(a, 'date'), posValue(b, 'date'), sd)),
+				totalAmount: pos.reduce((s, p) => s + p.amount, 0),
+				totalPnl: pos.reduce((s, p) => s + (p.pnl ?? 0), 0),
+				totalFees: pos.reduce((s, p) => s + p.totalFees, 0)
+			}))
+			.sort((a, b) => cmp(a.key, b.key, sd));
+	}
+
+	const dateGrouped = $derived(groupByDate(filteredPositions, sortDir));
+	const isByDate = $derived(sortField === 'date');
 
 	let expandedSymbols = $state<Set<string>>(new Set());
 	let expandedMonths = $state<Set<string>>(new Set());
@@ -138,14 +240,20 @@
 	}
 
 	function expandAll() {
-		const symbols = new Set<string>();
-		const months = new Set<string>();
-		for (const g of grouped) {
-			symbols.add(g.symbol);
-			for (const m of g.months) months.add(`${g.symbol}::${m.key}`);
+		if (isByDate) {
+			const months = new Set<string>();
+			for (const m of dateGrouped) months.add(`date::${m.key}`);
+			expandedMonths = months;
+		} else {
+			const symbols = new Set<string>();
+			const months = new Set<string>();
+			for (const g of grouped) {
+				symbols.add(g.symbol);
+				for (const m of g.months) months.add(`${g.symbol}::${m.key}`);
+			}
+			expandedSymbols = symbols;
+			expandedMonths = months;
 		}
-		expandedSymbols = symbols;
-		expandedMonths = months;
 	}
 
 	function collapseAll() {
@@ -159,15 +267,34 @@
 		<p class="text-lg text-text-secondary">No open positions</p>
 	</div>
 {:else}
-	<div class="mb-3 flex items-center justify-between">
+	<div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
 		<p class="text-sm text-text-secondary">
-			{#if isFiltered}
+			{#if isByDate}
+				{#if isFiltered}
+					{filteredPositions.length} of {positions.length} position{positions.length !== 1 ? 's' : ''} across {dateGrouped.length} month{dateGrouped.length !== 1 ? 's' : ''}
+				{:else}
+					{positions.length} position{positions.length !== 1 ? 's' : ''} across {dateGrouped.length} month{dateGrouped.length !== 1 ? 's' : ''}
+				{/if}
+			{:else if isFiltered}
 				{filteredPositions.length} of {positions.length} position{positions.length !== 1 ? 's' : ''} across {grouped.length} asset{grouped.length !== 1 ? 's' : ''}
 			{:else}
 				{positions.length} position{positions.length !== 1 ? 's' : ''} across {grouped.length} asset{grouped.length !== 1 ? 's' : ''}
 			{/if}
 		</p>
-		<div class="flex gap-2">
+		<div class="flex items-center gap-1">
+			{#each sortOptions as opt (opt.field)}
+				<button
+					onclick={() => toggleSort(opt.field)}
+					class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors {sortField === opt.field ? 'bg-surface-overlay text-text-primary' : 'text-text-secondary hover:text-text-primary'}"
+				>
+					{opt.label}
+					{#if sortField === opt.field}
+						<span class="ml-0.5 text-[9px]">{sortDir === 'desc' ? '▼' : '▲'}</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+		<div class="ml-auto flex gap-2">
 			<button onclick={expandAll} class="rounded-lg border border-border bg-surface-raised px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary">
 				Expand all
 			</button>
@@ -190,8 +317,9 @@
 			{@const fPnl = filteredPositions.reduce((s, p) => s + (p.pnl ?? 0), 0)}
 			{@const fFees = filteredPositions.reduce((s, p) => s + p.totalFees, 0)}
 			{@const fPnlPct = fInvested > 0 ? (fPnl / fInvested) * 100 : 0}
+			{@const rangeDays = Math.round((activeEnd.getTime() - activeStart.getTime()) / 86_400_000)}
 			<div class="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-brand/20 bg-brand/5 px-4 py-2 text-xs">
-				<span class="text-text-secondary">Filtered range</span>
+				<span class="text-text-secondary">Filtered range <span class="ml-1 font-medium text-text-primary">{rangeDays} day{rangeDays !== 1 ? 's' : ''}</span></span>
 				<span class="flex-1"></span>
 				<span>Fees / Div
 					<span class="font-medium {fFees < 0 ? 'text-gain' : fFees > 0 ? 'text-loss' : ''}">
@@ -217,6 +345,119 @@
 		<div class="rounded-xl border border-border bg-surface-raised px-8 py-12 text-center">
 			<p class="text-sm text-text-secondary">No positions in the selected date range</p>
 		</div>
+	{:else if isByDate}
+	<div class="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
+		{#each dateGrouped as month (month.key)}
+			{@const monthId = `date::${month.key}`}
+			{@const monthExpanded = expandedMonths.has(monthId)}
+			{@const monthPnlPercent = month.totalAmount > 0 ? (month.totalPnl / month.totalAmount) * 100 : 0}
+			<div class="col-span-full grid grid-cols-subgrid overflow-hidden rounded-xl border border-border bg-surface-raised">
+				<button
+					onclick={() => { const next = new Set(expandedMonths); if (next.has(monthId)) next.delete(monthId); else next.add(monthId); expandedMonths = next; }}
+					class="col-span-full grid grid-cols-subgrid items-center py-3.5 text-left transition-colors hover:bg-surface-overlay/50"
+				>
+					<div class="flex items-center gap-3 pl-5 pr-3">
+						<svg class="h-4 w-4 shrink-0 text-text-secondary transition-transform {monthExpanded ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
+						</svg>
+						<span class="text-sm font-semibold">{monthLabel(month.key)}</span>
+						<span class="rounded-full bg-surface-overlay px-2 py-0.5 text-xs text-text-secondary">
+							{month.positions.length}
+						</span>
+					</div>
+					<div class="px-4 text-right text-sm">
+						<p class="text-xs text-text-secondary">Fees / Div</p>
+						{#if month.totalFees !== 0}
+							<p class="font-medium {month.totalFees < 0 ? 'text-gain' : 'text-loss'}">
+								{month.totalFees < 0 ? '+' : ''}{fmt.format(Math.abs(month.totalFees))}
+							</p>
+						{:else}
+							<p class="font-medium text-text-secondary">—</p>
+						{/if}
+					</div>
+					<div class="px-4 text-right text-sm">
+						<p class="text-xs text-text-secondary">Invested</p>
+						<p class="font-medium">{fmt.format(month.totalAmount)}</p>
+					</div>
+					<div class="px-4 text-right text-sm">
+						<p class="text-xs text-text-secondary">P&L</p>
+						<p class="font-medium {pnlColor(month.totalPnl)}">
+							{pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
+						</p>
+					</div>
+					<div class="pl-4 pr-5 text-right text-sm">
+						<p class="text-xs text-text-secondary">P&L %</p>
+						<p class="font-medium {pnlColor(monthPnlPercent)}">
+							{pnlSign(monthPnlPercent)}{pctFmt.format(monthPnlPercent)}%
+						</p>
+					</div>
+				</button>
+
+				{#if monthExpanded}
+					<div class="col-span-full overflow-x-auto border-t border-border bg-black/20">
+						<table class="w-full text-xs">
+							<thead>
+								<tr class="border-b border-border/30 text-left text-[10px] font-medium uppercase tracking-wider text-text-secondary">
+									<th class="py-2 pl-5 pr-3">Date</th>
+									<th class="px-3 py-2">Ticker</th>
+									<th class="px-3 py-2">Side</th>
+									<th class="px-3 py-2 text-right">Amount</th>
+									<th class="px-3 py-2 text-right">Units</th>
+									<th class="px-3 py-2 text-right">Open Price</th>
+									<th class="px-3 py-2 text-right">Current</th>
+									<th class="px-3 py-2 text-right">Fees / Div</th>
+									<th class="px-3 py-2 text-right">P&L</th>
+									<th class="px-3 py-2 pr-5 text-right">P&L %</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-border/20">
+								{#each month.positions as pos, i (pos.positionId || i)}
+									{@const sym = normalizeSymbol(pos.symbol ?? `#${pos.instrumentId}`)}
+									<tr class="transition-colors hover:bg-surface-overlay/20">
+										<td class="py-2 pl-5 pr-3 text-text-secondary">
+											{dateFmt.format(new Date(pos.openDateTime))}
+										</td>
+										<td class="px-3 py-2">
+											<div class="flex items-center gap-2">
+												{#if pos.logoUrl}
+													<img src={pos.logoUrl} alt={sym} class="h-5 w-5 shrink-0 rounded-full" />
+												{:else}
+													<div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-[8px] font-bold text-text-secondary">
+														{sym.slice(0, 2)}
+													</div>
+												{/if}
+												<span class="font-medium">{sym}</span>
+											</div>
+										</td>
+										<td class="px-3 py-2">
+											<span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium {pos.isBuy ? 'bg-gain/15 text-gain' : 'bg-loss/15 text-loss'}">
+												{pos.isBuy ? 'BUY' : 'SELL'}
+											</span>
+										</td>
+										<td class="px-3 py-2 text-right font-medium">{fmt.format(pos.amount)}</td>
+										<td class="px-3 py-2 text-right tabular-nums text-text-secondary">{pos.units.toFixed(4)}</td>
+										<td class="px-3 py-2 text-right tabular-nums">{fmt.format(pos.openRate)}</td>
+										<td class="px-3 py-2 text-right tabular-nums">
+											{pos.currentRate !== undefined ? fmt.format(pos.currentRate) : '—'}
+										</td>
+										<td class="px-3 py-2 text-right tabular-nums {pos.totalFees < 0 ? 'text-gain' : pos.totalFees > 0 ? 'text-loss' : 'text-text-secondary'}">
+											{pos.totalFees !== 0 ? `${pos.totalFees < 0 ? '+' : ''}${fmt.format(Math.abs(pos.totalFees))}` : '—'}
+										</td>
+										<td class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(pos.pnl)}">
+											{pos.pnl !== undefined ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}` : '—'}
+										</td>
+										<td class="px-3 py-2 pr-5 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
+											{pos.pnlPercent !== undefined ? `${pnlSign(pos.pnlPercent)}${pctFmt.format(pos.pnlPercent)}%` : '—'}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</div>
+		{/each}
+	</div>
 	{:else}
 	<div class="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
 		{#each grouped as group (group.symbol)}

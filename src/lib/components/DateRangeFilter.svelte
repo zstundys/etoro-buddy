@@ -32,6 +32,10 @@
 		return d.toISOString().slice(0, 10);
 	}
 
+	const accountStatementUrl = $derived(
+		`https://www.etoro.com/documents/accountstatement/${toIso(startDate)}/${toIso(endDate)}`
+	);
+
 	let startDay = $derived(dateToDay(startDate));
 	let endDay = $derived(dateToDay(endDate));
 
@@ -251,14 +255,24 @@
 				{/each}
 			</div>
 		</div>
-		{#if isFiltered}
-			<button
-				onclick={reset}
+		<div class="flex items-center gap-2">
+			{#if isFiltered}
+				<button
+					onclick={reset}
+					class="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
+				>
+					Reset
+				</button>
+			{/if}
+			<a
+				href={accountStatementUrl}
+				target="_blank"
+				rel="noopener noreferrer"
 				class="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
 			>
-				Reset
-			</button>
-		{/if}
+				Account statement ↗
+			</a>
+		</div>
 	</div>
 
 	{#if totalDays > 0}
