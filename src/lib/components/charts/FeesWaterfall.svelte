@@ -53,7 +53,7 @@
 		if (!containerEl || width <= 0) return;
 
 		const filtered = positions.filter((p) => p.totalFees !== 0);
-		const sorted = [...filtered].sort((a, b) => a.totalFees - b.totalFees);
+		const sorted = [...filtered].sort((a, b) => b.totalFees - a.totalFees);
 
 		if (sorted.length === 0) {
 			d3.select(containerEl).selectAll('svg').remove();
@@ -74,14 +74,15 @@
 
 		let runningTotal = 0;
 		const items: WaterfallItem[] = sorted.map((p) => {
+			const impact = -p.totalFees;
 			const start = runningTotal;
-			runningTotal += p.totalFees;
+			runningTotal += impact;
 			const end = runningTotal;
 			return {
 				key: `pos-${p.positionId}`,
 				symbol: normalizeSymbol(p.symbol ?? `#${p.instrumentId}`),
-				totalFees: p.totalFees,
-				absValue: Math.abs(p.totalFees),
+				totalFees: impact,
+				absValue: Math.abs(impact),
 				start,
 				end,
 				isNet: false
@@ -202,8 +203,8 @@
 				return Math.max(0, bottom - top);
 			})
 			.attr('fill', (d) => {
-				if (d.isNet) return d.end >= 0 ? COLORS.loss : COLORS.gain;
-				return d.totalFees < 0 ? COLORS.gain : COLORS.loss;
+				if (d.isNet) return d.end >= 0 ? COLORS.gain : COLORS.loss;
+				return d.totalFees > 0 ? COLORS.gain : COLORS.loss;
 			})
 			.attr('rx', (d) => {
 				const isUp = d.end > d.start;
@@ -260,8 +261,8 @@
 			style="position: fixed; left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50"
 		>
 			<div class="font-semibold text-text-primary">{tooltip.symbol}</div>
-			<div class="mt-1 {tooltip.amount < 0 ? 'text-gain' : 'text-loss'}">
-				{tooltip.amount < 0 ? 'Dividend' : 'Fee'}: {fmt.format(tooltip.amount)}
+			<div class="mt-1 {tooltip.amount > 0 ? 'text-gain' : 'text-loss'}">
+				{tooltip.amount > 0 ? 'Dividend' : 'Fee'}: {fmt.format(tooltip.amount)}
 			</div>
 			<div class="mt-0.5 text-text-secondary">Running total: {fmt.format(tooltip.runningTotal)}</div>
 		</div>

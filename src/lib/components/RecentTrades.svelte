@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { EnrichedTrade, EnrichedPosition } from '$lib/etoro-api';
 	import { currency as fmt, percent as pctFmt, shortDate as dateFmt, pnlColor, pnlSign, normalizeSymbol } from '$lib/format';
+	import DateRangeFilter from './DateRangeFilter.svelte';
 
 	let { trades, positions }: { trades: EnrichedTrade[]; positions: EnrichedPosition[] } = $props();
 
@@ -20,9 +21,7 @@
 		pnlPercent: number | undefined;
 	};
 
-	const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
-
-	const rows = $derived.by((): UnifiedRow[] => {
+	const allRows = $derived.by((): UnifiedRow[] => {
 		const closedRows: UnifiedRow[] = trades.map((t) => ({
 			id: t.positionId,
 			status: 'closed' as const,
@@ -38,26 +37,59 @@
 			pnlPercent: t.investment > 0 ? (t.netProfit / t.investment) * 100 : 0
 		}));
 
-		const openRows: UnifiedRow[] = positions
-			.filter((p) => new Date(p.openDateTime).getTime() >= cutoff)
-			.map((p) => ({
-				id: p.positionId,
-				status: 'open' as const,
-				date: p.openDateTime,
-				symbol: p.symbol ? normalizeSymbol(p.symbol) : `#${p.instrumentId}`,
-				logoUrl: p.logoUrl,
-				isBuy: p.isBuy,
-				invested: p.amount,
-				openRate: p.openRate,
-				currentRate: p.currentRate,
-				fees: p.totalFees,
-				pnl: p.pnl,
-				pnlPercent: p.pnlPercent
-			}));
+		const openRows: UnifiedRow[] = positions.map((p) => ({
+			id: p.positionId,
+			status: 'open' as const,
+			date: p.openDateTime,
+			symbol: p.symbol ? normalizeSymbol(p.symbol) : `#${p.instrumentId}`,
+			logoUrl: p.logoUrl,
+			isBuy: p.isBuy,
+			invested: p.amount,
+			openRate: p.openRate,
+			currentRate: p.currentRate,
+			fees: p.totalFees,
+			pnl: p.pnl,
+			pnlPercent: p.pnlPercent
+		}));
 
 		return [...closedRows, ...openRows].sort(
 			(a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
 		);
+	});
+
+	const dateRange = $derived.by(() => {
+		let min = Infinity, max = -Infinity;
+		for (const r of allRows) {
+			const t = new Date(r.date).getTime();
+			if (isNaN(t)) continue;
+			if (t < min) min = t;
+			if (t > max) max = t;
+		}
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		if (min > max) return { min: today, max: today };
+		return { min: new Date(min), max: new Date(Math.max(max, today.getTime())) };
+	});
+
+	let filterStart = $state<Date | null>(null);
+	let filterEnd = $state<Date | null>(null);
+
+	const activeStart = $derived(filterStart ?? dateRange.min);
+	const activeEnd = $derived(filterEnd ?? dateRange.max);
+
+	function onFilterChange(start: Date, end: Date) {
+		const sameAsMin = start.getTime() <= dateRange.min.getTime();
+		const sameAsMax = end.getTime() >= dateRange.max.getTime();
+		filterStart = sameAsMin ? null : start;
+		filterEnd = sameAsMax ? null : end;
+	}
+
+	const rows = $derived.by(() => {
+		if (filterStart === null && filterEnd === null) return allRows;
+		return allRows.filter((r) => {
+			const t = new Date(r.date).getTime();
+			return t >= activeStart.getTime() && t <= activeEnd.getTime();
+		});
 	});
 
 	const closedRows = $derived(rows.filter((r) => r.status === 'closed'));
@@ -68,16 +100,24 @@
 </script>
 
 <section class="mt-10">
-	<div class="mb-4 flex items-center justify-between">
-		<div>
-			<h2 class="text-lg font-semibold tracking-tight">Recent Activity</h2>
-			<p class="text-sm text-text-secondary">Opened and closed in the last 90 days</p>
+	<div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+		<h2 class="text-lg font-semibold tracking-tight">Recent Activity</h2>
+		<div class="ml-auto">
+			<DateRangeFilter
+				minDate={dateRange.min}
+				maxDate={dateRange.max}
+				startDate={activeStart}
+				endDate={activeEnd}
+				onchange={onFilterChange}
+				defaultPick="3M"
+				minimal
+			/>
 		</div>
 	</div>
 
 	{#if rows.length === 0}
 		<div class="rounded-xl border border-border bg-surface-raised px-8 py-16 text-center">
-			<p class="text-lg text-text-secondary">No activity in the last 90 days</p>
+			<p class="text-lg text-text-secondary">No activity in the selected range</p>
 		</div>
 	{:else}
 		<div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">

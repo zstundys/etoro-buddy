@@ -117,7 +117,7 @@
 				<Timeline positions={filtered.positions} />
 			</div>
 
-			<div class="rounded-xl border border-border bg-surface-raised p-5">
+			<div class="col-span-1 rounded-xl border border-border bg-surface-raised p-5 lg:col-span-2">
 				<h3 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Fees &amp; Dividends</h3>
 				<FeesWaterfall positions={filtered.positions} />
 			</div>

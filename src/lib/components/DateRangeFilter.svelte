@@ -8,9 +8,10 @@
 		endDate: Date;
 		onchange: (start: Date, end: Date) => void;
 		minimal?: boolean;
+		defaultPick?: string;
 	};
 
-	let { minDate, maxDate, startDate, endDate, onchange, minimal = false }: Props = $props();
+	let { minDate, maxDate, startDate, endDate, onchange, minimal = false, defaultPick }: Props = $props();
 
 	const msPerDay = 86_400_000;
 
@@ -124,6 +125,15 @@
 		{ label: 'YTD', months: -1 },
 		{ label: 'ALL', months: 0 }
 	] as const;
+
+	let defaultApplied = false;
+	$effect(() => {
+		if (defaultPick && !defaultApplied && totalDays > 0) {
+			defaultApplied = true;
+			const pick = quickPicks.find((q) => q.label === defaultPick);
+			if (pick) pickRange(pick.months);
+		}
+	});
 
 	function pickRange(months: number) {
 		if (months === 0) return reset();
