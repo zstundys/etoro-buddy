@@ -224,7 +224,8 @@
 	}
 </script>
 
-<div class="rounded-xl border border-border bg-surface-raised px-5 py-4">
+<div class="overflow-x-auto rounded-xl border border-border bg-surface-raised px-5 py-4">
+	<div class="min-w-fit">
 	<div class="flex items-center justify-between gap-4">
 		<div class="flex items-center gap-3">
 			<input
@@ -330,6 +331,7 @@
 			<span class="absolute right-0 text-[10px] text-text-secondary">{dateFmt.format(maxDate)}</span>
 		</div>
 	{/if}
+	</div>
 </div>
 
 <style>

@@ -31,12 +31,9 @@
 
 	const activeStart = $derived(filterStart ?? dateRange.min);
 	const activeEnd = $derived(filterEnd ?? dateRange.max);
+	const isFiltered = $derived(filterStart !== null || filterEnd !== null);
 
-	const isFiltered = $derived(
-		filterStart !== null || filterEnd !== null
-	);
-
-	function handleFilterChange(start: Date, end: Date) {
+	function onFilterChange(start: Date, end: Date) {
 		const sameAsMin = start.getTime() <= dateRange.min.getTime();
 		const sameAsMax = end.getTime() >= dateRange.max.getTime();
 		filterStart = sameAsMin ? null : start;
@@ -310,7 +307,7 @@
 			maxDate={dateRange.max}
 			startDate={activeStart}
 			endDate={activeEnd}
-			onchange={handleFilterChange}
+			onchange={onFilterChange}
 		/>
 		{#if isFiltered}
 			{@const fInvested = filteredPositions.reduce((s, p) => s + p.amount, 0)}
@@ -346,7 +343,8 @@
 			<p class="text-sm text-text-secondary">No positions in the selected date range</p>
 		</div>
 	{:else if isByDate}
-	<div class="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
+	<div class="overflow-x-auto">
+	<div class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
 		{#each dateGrouped as month (month.key)}
 			{@const monthId = `date::${month.key}`}
 			{@const monthExpanded = expandedMonths.has(monthId)}
@@ -458,8 +456,10 @@
 			</div>
 		{/each}
 	</div>
+	</div>
 	{:else}
-	<div class="grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
+	<div class="overflow-x-auto">
+	<div class="min-w-[700px] grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
 		{#each grouped as group (group.symbol)}
 			{@const symbolExpanded = expandedSymbols.has(group.symbol)}
 			{@const groupPnlPercent = group.totalAmount > 0 ? (group.totalPnl / group.totalAmount) * 100 : 0}
@@ -609,6 +609,7 @@
 				{/if}
 			</div>
 		{/each}
+	</div>
 	</div>
 	{/if}
 {/if}
