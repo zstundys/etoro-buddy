@@ -52,9 +52,12 @@
 	<ApiKeySetup
 		onsubmit={handleKeysSubmit}
 		onclear={handleKeysClear}
+		onrefresh={() => client.refresh()}
 		hasKeys={client.hasKeys}
 		error={client.error}
 		loading={client.loading}
+		refreshing={client.refreshing}
+		lastLoaded={client.lastLoaded}
 		compact={hasData && !client.hasKeys}
 	/>
 </div>

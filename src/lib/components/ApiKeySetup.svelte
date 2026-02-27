@@ -2,18 +2,35 @@
 	let {
 		onsubmit,
 		onclear,
+		onrefresh,
 		hasKeys = false,
 		error = null,
 		loading = false,
+		refreshing = false,
+		lastLoaded = null,
 		compact = false
 	}: {
 		onsubmit: (apiKey: string, userKey: string) => void;
 		onclear?: () => void;
+		onrefresh?: () => void;
 		hasKeys?: boolean;
 		error?: string | null;
 		loading?: boolean;
+		refreshing?: boolean;
+		lastLoaded?: Date | null;
 		compact?: boolean;
 	} = $props();
+
+	function formatLastLoaded(date: Date): string {
+		const now = new Date();
+		const diffMs = now.getTime() - date.getTime();
+		const diffMin = Math.floor(diffMs / 60_000);
+		if (diffMin < 1) return 'just now';
+		if (diffMin < 60) return `${diffMin}m ago`;
+		const diffHr = Math.floor(diffMin / 60);
+		if (diffHr < 24) return `${diffHr}h ago`;
+		return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+	}
 
 	let apiKey = $state('');
 	let userKey = $state('');
@@ -45,18 +62,36 @@
 			</svg>
 		</div>
 		<span class="text-sm text-text-secondary">Using your API keys</span>
-		<button
-			onclick={() => { formOverride = true; }}
-			class="ml-auto rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
-		>
-			Change
-		</button>
-		<button
-			onclick={handleClear}
-			class="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-loss"
-		>
-			Remove
-		</button>
+		{#if lastLoaded}
+			<span class="text-xs text-text-secondary/60">&middot; Updated {formatLastLoaded(lastLoaded)}</span>
+		{/if}
+		<div class="ml-auto flex items-center gap-2">
+			<button
+				onclick={onrefresh}
+				disabled={refreshing}
+				class="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
+			>
+				<svg class="h-3.5 w-3.5 {refreshing ? 'animate-spin' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M21 2v6h-6" stroke-linecap="round" stroke-linejoin="round" />
+					<path d="M3 12a9 9 0 0115.36-6.36L21 8" stroke-linecap="round" stroke-linejoin="round" />
+					<path d="M3 22v-6h6" stroke-linecap="round" stroke-linejoin="round" />
+					<path d="M21 12a9 9 0 01-15.36 6.36L3 16" stroke-linecap="round" stroke-linejoin="round" />
+				</svg>
+				{refreshing ? 'Refreshing...' : 'Refresh'}
+			</button>
+			<button
+				onclick={() => { formOverride = true; }}
+				class="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
+			>
+				Change
+			</button>
+			<button
+				onclick={handleClear}
+				class="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-loss"
+			>
+				Remove
+			</button>
+		</div>
 	</div>
 {:else}
 	<div class="{compact ? '' : 'rounded-xl border border-border bg-surface-raised p-6'}">
@@ -85,7 +120,7 @@
 
 		<form onsubmit={handleSubmit} class="space-y-3">
 			<div>
-				<label for="api-key" class="mb-1 block text-xs font-medium text-text-secondary">API Key</label>
+				<label for="api-key" class="mb-1 block text-xs font-medium text-text-secondary">API Key (Public Key)</label>
 				<input
 					id="api-key"
 					type={revealed ? 'text' : 'password'}
@@ -97,7 +132,7 @@
 				/>
 			</div>
 			<div>
-				<label for="user-key" class="mb-1 block text-xs font-medium text-text-secondary">User Key</label>
+				<label for="user-key" class="mb-1 block text-xs font-medium text-text-secondary">User Key (Generated Key)</label>
 				<input
 					id="user-key"
 					type={revealed ? 'text' : 'password'}
