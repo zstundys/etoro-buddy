@@ -265,43 +265,6 @@
 		<p class="text-lg text-text-secondary">No open positions</p>
 	</div>
 {:else}
-	<div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-		<p class="text-sm text-text-secondary">
-			{#if isByDate}
-				{#if isFiltered}
-					{filteredPositions.length} of {positions.length} position{positions.length !== 1 ? 's' : ''} across {dateGrouped.length} month{dateGrouped.length !== 1 ? 's' : ''}
-				{:else}
-					{positions.length} position{positions.length !== 1 ? 's' : ''} across {dateGrouped.length} month{dateGrouped.length !== 1 ? 's' : ''}
-				{/if}
-			{:else if isFiltered}
-				{filteredPositions.length} of {positions.length} position{positions.length !== 1 ? 's' : ''} across {grouped.length} asset{grouped.length !== 1 ? 's' : ''}
-			{:else}
-				{positions.length} position{positions.length !== 1 ? 's' : ''} across {grouped.length} asset{grouped.length !== 1 ? 's' : ''}
-			{/if}
-		</p>
-		<div class="flex items-center gap-1">
-			{#each sortOptions as opt (opt.field)}
-				<button
-					onclick={() => toggleSort(opt.field)}
-					class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors {sortField === opt.field ? 'bg-surface-overlay text-text-primary' : 'text-text-secondary hover:text-text-primary'}"
-				>
-					{opt.label}
-					{#if sortField === opt.field}
-						<span class="ml-0.5 text-[9px]">{sortDir === 'desc' ? '▼' : '▲'}</span>
-					{/if}
-				</button>
-			{/each}
-		</div>
-		<div class="ml-auto flex gap-2">
-			<button onclick={expandAll} class="rounded-lg border border-border bg-surface-raised px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary">
-				Expand all
-			</button>
-			<button onclick={collapseAll} class="rounded-lg border border-border bg-surface-raised px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary">
-				Collapse all
-			</button>
-		</div>
-	</div>
-
 	<div class="mb-4">
 		<DateRangeFilter
 			minDate={dateRange.min}
@@ -339,13 +302,64 @@
 		{/if}
 	</div>
 
+	<div class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+		<p class="text-sm text-text-secondary">
+			{#if isByDate}
+				{#if isFiltered}
+					{filteredPositions.length} of {positions.length} position{positions.length !== 1 ? 's' : ''} across {dateGrouped.length} month{dateGrouped.length !== 1 ? 's' : ''}
+				{:else}
+					{positions.length} position{positions.length !== 1 ? 's' : ''} across {dateGrouped.length} month{dateGrouped.length !== 1 ? 's' : ''}
+				{/if}
+			{:else if isFiltered}
+				{filteredPositions.length} of {positions.length} position{positions.length !== 1 ? 's' : ''} across {grouped.length} asset{grouped.length !== 1 ? 's' : ''}
+			{:else}
+				{positions.length} position{positions.length !== 1 ? 's' : ''} across {grouped.length} asset{grouped.length !== 1 ? 's' : ''}
+			{/if}
+		</p>
+		<div class="ml-auto flex items-center gap-2">
+			<div class="flex items-center gap-1">
+				{#each sortOptions as opt (opt.field)}
+					<button
+						onclick={() => toggleSort(opt.field)}
+						class="rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors {sortField === opt.field ? 'bg-surface-overlay text-text-primary' : 'text-text-secondary hover:text-text-primary'}"
+					>
+						{opt.label}
+						{#if sortField === opt.field}
+							<span class="ml-0.5 text-[9px]">{sortDir === 'desc' ? '▼' : '▲'}</span>
+						{/if}
+					</button>
+				{/each}
+			</div>
+			<div class="flex gap-2">
+				<button onclick={expandAll} class="rounded-lg border border-border bg-surface-raised px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary">
+					Expand all
+				</button>
+				<button onclick={collapseAll} class="rounded-lg border border-border bg-surface-raised px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary">
+					Collapse all
+				</button>
+			</div>
+		</div>
+	</div>
+
 	{#if isFiltered && filteredPositions.length === 0}
 		<div class="rounded-xl border border-border bg-surface-raised px-8 py-12 text-center">
 			<p class="text-sm text-text-secondary">No positions in the selected date range</p>
 		</div>
 	{:else if isByDate}
 	<div class="overflow-x-auto">
-	<div class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
+	<div class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2">
+		<div class="col-span-full grid grid-cols-subgrid h-0 min-h-0 overflow-hidden" aria-hidden="true">
+			<div class="pl-5 pr-3 text-xs">Jan 00, 0000</div>
+			<div class="px-3 text-xs">TICKER</div>
+			<div class="px-3 text-xs">SELL</div>
+			<div class="px-3 text-right text-xs tabular-nums">$0,000.00</div>
+			<div class="px-3 text-right text-xs tabular-nums">00.0000</div>
+			<div class="px-3 text-right text-xs tabular-nums">$0,000.00</div>
+			<div class="px-3 text-right text-xs tabular-nums">$0,000.00</div>
+			<div class="px-3 text-right text-xs tabular-nums">+$0,000.00</div>
+			<div class="px-3 text-right text-xs tabular-nums">+$0,000.00</div>
+			<div class="px-3 pr-5 text-right text-xs tabular-nums">+00.00%</div>
+		</div>
 		{#each dateGrouped as month (month.key)}
 			{@const monthId = `date::${month.key}`}
 			{@const monthExpanded = expandedMonths.has(monthId)}
@@ -355,7 +369,7 @@
 					onclick={() => { const next = new Set(expandedMonths); if (next.has(monthId)) next.delete(monthId); else next.add(monthId); expandedMonths = next; }}
 					class="col-span-full grid grid-cols-subgrid items-center py-3.5 text-left transition-colors hover:bg-surface-overlay/50"
 				>
-					<div class="flex items-center gap-3 pl-5 pr-3">
+					<div class="col-span-3 flex items-center gap-3 pl-5 pr-3">
 						<svg class="h-4 w-4 shrink-0 text-text-secondary transition-transform {monthExpanded ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
 						</svg>
@@ -365,6 +379,11 @@
 						</span>
 					</div>
 					<div class="whitespace-nowrap px-4 text-right text-sm">
+						<p class="text-xs text-text-secondary">Invested</p>
+						<p class="font-medium">{fmt.format(month.totalAmount)}</p>
+					</div>
+					<div class="col-span-3"></div>
+					<div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">Fees / Div</p>
 						{#if month.totalFees !== 0}
 							<p class="font-medium {month.totalFees < 0 ? 'text-gain' : 'text-loss'}">
@@ -374,17 +393,13 @@
 							<p class="font-medium text-text-secondary">—</p>
 						{/if}
 					</div>
-					<div class="whitespace-nowrap px-4 text-right text-sm">
-						<p class="text-xs text-text-secondary">Invested</p>
-						<p class="font-medium">{fmt.format(month.totalAmount)}</p>
-					</div>
-					<div class="whitespace-nowrap px-4 text-right text-sm">
+					<div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L</p>
 						<p class="font-medium {pnlColor(month.totalPnl)}">
 							{pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
 						</p>
 					</div>
-					<div class="whitespace-nowrap pl-4 pr-5 text-right text-sm">
+					<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L %</p>
 						<p class="font-medium {pnlColor(monthPnlPercent)}">
 							{pnlSign(monthPnlPercent)}{pctFmt.format(monthPnlPercent)}%
@@ -393,65 +408,59 @@
 				</button>
 
 				{#if monthExpanded}
-					<div class="col-span-full overflow-x-auto border-t border-border bg-black/20">
-						<table class="w-full text-xs">
-							<thead>
-								<tr class="border-b border-border/30 text-left text-[10px] font-medium uppercase tracking-wider text-text-secondary">
-									<th class="py-2 pl-5 pr-3">Date</th>
-									<th class="px-3 py-2">Ticker</th>
-									<th class="px-3 py-2">Side</th>
-									<th class="px-3 py-2 text-right">Amount</th>
-									<th class="px-3 py-2 text-right">Units</th>
-									<th class="px-3 py-2 text-right">Open Price</th>
-									<th class="px-3 py-2 text-right">Current</th>
-									<th class="px-3 py-2 text-right">Fees / Div</th>
-									<th class="px-3 py-2 text-right">P&L</th>
-									<th class="px-3 py-2 pr-5 text-right">P&L %</th>
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-border/20">
-								{#each month.positions as pos, i (pos.positionId || i)}
-									{@const sym = normalizeSymbol(pos.symbol ?? `#${pos.instrumentId}`)}
-									<tr class="transition-colors hover:bg-surface-overlay/20">
-<td class="whitespace-nowrap py-2 pl-5 pr-3 text-text-secondary">
-										{dateFmt.format(new Date(pos.openDateTime))}
-									</td>
-										<td class="px-3 py-2">
-											<div class="flex items-center gap-2">
-												{#if pos.logoUrl}
-													<img src={pos.logoUrl} alt={sym} class="h-5 w-5 shrink-0 rounded-full" />
-												{:else}
-													<div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-[8px] font-bold text-text-secondary">
-														{sym.slice(0, 2)}
-													</div>
-												{/if}
-												<span class="font-medium">{sym}</span>
+					<div class="col-span-full grid grid-cols-subgrid border-t border-border bg-black/20 text-xs">
+						<div class="col-span-full grid grid-cols-subgrid border-b border-border/30 text-[10px] font-medium uppercase tracking-wider text-text-secondary">
+							<div class="py-2 pl-5 pr-3">Date</div>
+							<div class="px-3 py-2">Ticker</div>
+							<div class="px-3 py-2">Side</div>
+							<div class="px-3 py-2 text-right">Amount</div>
+							<div class="px-3 py-2 text-right">Units</div>
+							<div class="px-3 py-2 text-right">Open Price</div>
+							<div class="px-3 py-2 text-right">Current</div>
+							<div class="px-3 py-2 text-right">Fees / Div</div>
+							<div class="px-3 py-2 text-right">P&L</div>
+							<div class="px-3 py-2 pr-5 text-right">P&L %</div>
+						</div>
+						{#each month.positions as pos, i (pos.positionId || i)}
+							{@const sym = normalizeSymbol(pos.symbol ?? `#${pos.instrumentId}`)}
+							<div class="col-span-full grid grid-cols-subgrid border-b border-border/20 last:border-b-0 transition-colors hover:bg-surface-overlay/20">
+								<div class="whitespace-nowrap py-2 pl-5 pr-3 text-text-secondary">
+									{dateFmt.format(new Date(pos.openDateTime))}
+								</div>
+								<div class="px-3 py-2">
+									<div class="flex items-center gap-2">
+										{#if pos.logoUrl}
+											<img src={pos.logoUrl} alt={sym} class="h-5 w-5 shrink-0 rounded-full" />
+										{:else}
+											<div class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-[8px] font-bold text-text-secondary">
+												{sym.slice(0, 2)}
 											</div>
-										</td>
-										<td class="px-3 py-2">
-											<span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium {pos.isBuy ? 'bg-gain/15 text-gain' : 'bg-loss/15 text-loss'}">
-												{pos.isBuy ? 'BUY' : 'SELL'}
-											</span>
-										</td>
-										<td class="px-3 py-2 text-right font-medium">{fmt.format(pos.amount)}</td>
-										<td class="px-3 py-2 text-right tabular-nums text-text-secondary">{pos.units.toFixed(4)}</td>
-										<td class="px-3 py-2 text-right tabular-nums">{fmt.format(pos.openRate)}</td>
-										<td class="px-3 py-2 text-right tabular-nums">
-											{pos.currentRate !== undefined ? fmt.format(pos.currentRate) : '—'}
-										</td>
-										<td class="px-3 py-2 text-right tabular-nums {pos.totalFees < 0 ? 'text-gain' : pos.totalFees > 0 ? 'text-loss' : 'text-text-secondary'}">
-											{pos.totalFees !== 0 ? `${pos.totalFees < 0 ? '+' : ''}${fmt.format(Math.abs(pos.totalFees))}` : '—'}
-										</td>
-										<td class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(pos.pnl)}">
-											{pos.pnl !== undefined ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}` : '—'}
-										</td>
-										<td class="px-3 py-2 pr-5 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
-											{pos.pnlPercent !== undefined ? `${pnlSign(pos.pnlPercent)}${pctFmt.format(pos.pnlPercent)}%` : '—'}
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
+										{/if}
+										<span class="font-medium">{sym}</span>
+									</div>
+								</div>
+								<div class="px-3 py-2">
+									<span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium {pos.isBuy ? 'bg-gain/15 text-gain' : 'bg-loss/15 text-loss'}">
+										{pos.isBuy ? 'BUY' : 'SELL'}
+									</span>
+								</div>
+								<div class="px-3 py-2 text-right font-medium">{fmt.format(pos.amount)}</div>
+								<div class="px-3 py-2 text-right tabular-nums text-text-secondary">{pos.units.toFixed(4)}</div>
+								<div class="px-3 py-2 text-right tabular-nums">{fmt.format(pos.openRate)}</div>
+								<div class="px-3 py-2 text-right tabular-nums">
+									{pos.currentRate !== undefined ? fmt.format(pos.currentRate) : '—'}
+								</div>
+								<div class="px-3 py-2 text-right tabular-nums {pos.totalFees < 0 ? 'text-gain' : pos.totalFees > 0 ? 'text-loss' : 'text-text-secondary'}">
+									{pos.totalFees !== 0 ? `${pos.totalFees < 0 ? '+' : ''}${fmt.format(Math.abs(pos.totalFees))}` : '—'}
+								</div>
+								<div class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(pos.pnl)}">
+									{pos.pnl !== undefined ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}` : '—'}
+								</div>
+								<div class="px-3 py-2 pr-5 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
+									{pos.pnlPercent !== undefined ? `${pnlSign(pos.pnlPercent)}${pctFmt.format(pos.pnlPercent)}%` : '—'}
+								</div>
+							</div>
+						{/each}
 					</div>
 				{/if}
 			</div>
@@ -460,7 +469,18 @@
 	</div>
 	{:else}
 	<div class="overflow-x-auto">
-	<div class="min-w-[700px] grid grid-cols-[1fr_auto_auto_auto_auto] gap-2">
+	<div class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2">
+		<div class="col-span-full grid grid-cols-subgrid h-0 min-h-0 overflow-hidden" aria-hidden="true">
+			<div class="pl-16 pr-3 text-xs">Jan 00, 0000</div>
+			<div class="px-3 text-xs">SELL</div>
+			<div class="px-3 text-right text-xs tabular-nums">$0,000.00</div>
+			<div class="px-3 text-right text-xs tabular-nums">00.0000</div>
+			<div class="px-3 text-right text-xs tabular-nums">$0,000.00</div>
+			<div class="px-3 text-right text-xs tabular-nums">$0,000.00</div>
+			<div class="px-3 text-right text-xs tabular-nums">+$0,000.00</div>
+			<div class="px-3 text-right text-xs tabular-nums">+$0,000.00</div>
+			<div class="px-3 pr-5 text-right text-xs tabular-nums">+00.00%</div>
+		</div>
 		{#each grouped as group (group.symbol)}
 			{@const symbolExpanded = expandedSymbols.has(group.symbol)}
 			{@const groupPnlPercent = group.totalAmount > 0 ? (group.totalPnl / group.totalAmount) * 100 : 0}
@@ -469,7 +489,7 @@
 					onclick={() => toggleSymbol(group.symbol)}
 					class="col-span-full grid grid-cols-subgrid items-center py-3.5 text-left transition-colors hover:bg-surface-overlay/50"
 				>
-					<div class="flex items-center gap-3 pl-5 pr-3">
+					<div class="col-span-2 flex items-center gap-3 pl-5 pr-3">
 						<svg class="h-4 w-4 shrink-0 text-text-secondary transition-transform {symbolExpanded ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 							<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
 						</svg>
@@ -491,6 +511,11 @@
 						</span>
 					</div>
 					<div class="whitespace-nowrap px-4 text-right text-sm">
+						<p class="text-xs text-text-secondary">Invested</p>
+						<p class="font-medium">{fmt.format(group.totalAmount)}</p>
+					</div>
+					<div class="col-span-3"></div>
+					<div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">Fees / Div</p>
 						{#if group.totalFees !== 0}
 							<p class="font-medium {group.totalFees < 0 ? 'text-gain' : 'text-loss'}">
@@ -500,17 +525,13 @@
 							<p class="font-medium text-text-secondary">—</p>
 						{/if}
 					</div>
-					<div class="whitespace-nowrap px-4 text-right text-sm">
-						<p class="text-xs text-text-secondary">Invested</p>
-						<p class="font-medium">{fmt.format(group.totalAmount)}</p>
-					</div>
-					<div class="whitespace-nowrap px-4 text-right text-sm">
+					<div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L</p>
 						<p class="font-medium {pnlColor(group.totalPnl)}">
 							{pnlSign(group.totalPnl)}{fmt.format(group.totalPnl)}
 						</p>
 					</div>
-					<div class="whitespace-nowrap pl-4 pr-5 text-right text-sm">
+					<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-sm">
 						<p class="text-xs text-text-secondary">P&L %</p>
 						<p class="font-medium {pnlColor(groupPnlPercent)}">
 							{pnlSign(groupPnlPercent)}{pctFmt.format(groupPnlPercent)}%
@@ -528,7 +549,7 @@
 									onclick={() => toggleMonth(group.symbol, month.key)}
 									class="col-span-full grid grid-cols-subgrid items-center py-2.5 text-left transition-colors hover:bg-surface-overlay/30"
 								>
-									<div class="flex items-center gap-3 pl-10 pr-3">
+									<div class="col-span-2 flex items-center gap-3 pl-10 pr-3">
 										<svg class="h-3.5 w-3.5 shrink-0 text-text-secondary transition-transform {monthExpanded ? 'rotate-90' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 											<path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
 										</svg>
@@ -537,6 +558,10 @@
 										</span>
 									</div>
 									<div class="whitespace-nowrap px-4 text-right text-xs">
+										{fmt.format(month.totalAmount)}
+									</div>
+									<div class="col-span-3"></div>
+									<div class="min-w-24 whitespace-nowrap px-4 text-right text-xs">
 										{#if month.totalFees !== 0}
 											<span class="{month.totalFees < 0 ? 'text-gain' : 'text-loss'}">
 												{month.totalFees < 0 ? '+' : ''}{fmt.format(Math.abs(month.totalFees))}
@@ -545,63 +570,54 @@
 											<span class="text-text-secondary">—</span>
 										{/if}
 									</div>
-									<div class="whitespace-nowrap px-4 text-right text-xs">
-										{fmt.format(month.totalAmount)}
-									</div>
-									<div class="whitespace-nowrap px-4 text-right text-xs {pnlColor(month.totalPnl)}">
+									<div class="min-w-24 whitespace-nowrap px-4 text-right text-xs {pnlColor(month.totalPnl)}">
 										{pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
 									</div>
-									<div class="whitespace-nowrap pl-4 pr-5 text-right text-xs {pnlColor(monthPnlPercent)}">
+									<div class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-xs {pnlColor(monthPnlPercent)}">
 										{pnlSign(monthPnlPercent)}{pctFmt.format(monthPnlPercent)}%
 									</div>
 								</button>
 
 								{#if monthExpanded}
-									<div class="col-span-full overflow-x-auto bg-black/20">
-										<table class="w-full text-xs">
-											<thead>
-												<tr class="border-b border-border/30 text-left text-[10px] font-medium uppercase tracking-wider text-text-secondary">
-													<th class="py-2 pl-16 pr-3">Date</th>
-													<th class="px-3 py-2">Side</th>
-													<th class="px-3 py-2 text-right">Amount</th>
-													<th class="px-3 py-2 text-right">Units</th>
-													<th class="px-3 py-2 text-right">Open Price</th>
-													<th class="px-3 py-2 text-right">Current</th>
-													<th class="px-3 py-2 text-right">Fees / Div</th>
-													<th class="px-3 py-2 text-right">P&L</th>
-													<th class="px-3 py-2 pr-5 text-right">P&L %</th>
-												</tr>
-											</thead>
-											<tbody class="divide-y divide-border/20">
-												{#each month.positions as pos, i (pos.positionId || i)}
-													<tr class="transition-colors hover:bg-surface-overlay/20">
-														<td class="whitespace-nowrap py-2 pl-16 pr-3 text-text-secondary">
-															{dateFmt.format(new Date(pos.openDateTime))}
-														</td>
-														<td class="px-3 py-2">
-															<span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium {pos.isBuy ? 'bg-gain/15 text-gain' : 'bg-loss/15 text-loss'}">
-																{pos.isBuy ? 'BUY' : 'SELL'}
-															</span>
-														</td>
-														<td class="px-3 py-2 text-right font-medium">{fmt.format(pos.amount)}</td>
-														<td class="px-3 py-2 text-right tabular-nums text-text-secondary">{pos.units.toFixed(4)}</td>
-														<td class="px-3 py-2 text-right tabular-nums">{fmt.format(pos.openRate)}</td>
-														<td class="px-3 py-2 text-right tabular-nums">
-															{pos.currentRate !== undefined ? fmt.format(pos.currentRate) : '—'}
-														</td>
-														<td class="px-3 py-2 text-right tabular-nums {pos.totalFees < 0 ? 'text-gain' : pos.totalFees > 0 ? 'text-loss' : 'text-text-secondary'}">
-															{pos.totalFees !== 0 ? `${pos.totalFees < 0 ? '+' : ''}${fmt.format(Math.abs(pos.totalFees))}` : '—'}
-														</td>
-														<td class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(pos.pnl)}">
-															{pos.pnl !== undefined ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}` : '—'}
-														</td>
-														<td class="px-3 py-2 pr-5 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
-															{pos.pnlPercent !== undefined ? `${pnlSign(pos.pnlPercent)}${pctFmt.format(pos.pnlPercent)}%` : '—'}
-														</td>
-													</tr>
-												{/each}
-											</tbody>
-										</table>
+									<div class="col-span-full grid grid-cols-subgrid bg-black/20 text-xs">
+										<div class="col-span-full grid grid-cols-subgrid border-b border-border/30 text-[10px] font-medium uppercase tracking-wider text-text-secondary">
+											<div class="py-2 pl-16 pr-3">Date</div>
+											<div class="px-3 py-2">Side</div>
+											<div class="px-3 py-2 text-right">Amount</div>
+											<div class="px-3 py-2 text-right">Units</div>
+											<div class="px-3 py-2 text-right">Open Price</div>
+											<div class="px-3 py-2 text-right">Current</div>
+											<div class="px-3 py-2 text-right">Fees / Div</div>
+											<div class="px-3 py-2 text-right">P&L</div>
+											<div class="px-3 py-2 pr-5 text-right">P&L %</div>
+										</div>
+										{#each month.positions as pos, i (pos.positionId || i)}
+											<div class="col-span-full grid grid-cols-subgrid border-b border-border/20 last:border-b-0 transition-colors hover:bg-surface-overlay/20">
+												<div class="whitespace-nowrap py-2 pl-16 pr-3 text-text-secondary">
+													{dateFmt.format(new Date(pos.openDateTime))}
+												</div>
+												<div class="px-3 py-2">
+													<span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium {pos.isBuy ? 'bg-gain/15 text-gain' : 'bg-loss/15 text-loss'}">
+														{pos.isBuy ? 'BUY' : 'SELL'}
+													</span>
+												</div>
+												<div class="px-3 py-2 text-right font-medium">{fmt.format(pos.amount)}</div>
+												<div class="px-3 py-2 text-right tabular-nums text-text-secondary">{pos.units.toFixed(4)}</div>
+												<div class="px-3 py-2 text-right tabular-nums">{fmt.format(pos.openRate)}</div>
+												<div class="px-3 py-2 text-right tabular-nums">
+													{pos.currentRate !== undefined ? fmt.format(pos.currentRate) : '—'}
+												</div>
+												<div class="px-3 py-2 text-right tabular-nums {pos.totalFees < 0 ? 'text-gain' : pos.totalFees > 0 ? 'text-loss' : 'text-text-secondary'}">
+													{pos.totalFees !== 0 ? `${pos.totalFees < 0 ? '+' : ''}${fmt.format(Math.abs(pos.totalFees))}` : '—'}
+												</div>
+												<div class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(pos.pnl)}">
+													{pos.pnl !== undefined ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}` : '—'}
+												</div>
+												<div class="px-3 py-2 pr-5 text-right tabular-nums {pnlColor(pos.pnlPercent)}">
+													{pos.pnlPercent !== undefined ? `${pnlSign(pos.pnlPercent)}${pctFmt.format(pos.pnlPercent)}%` : '—'}
+												</div>
+											</div>
+										{/each}
 									</div>
 								{/if}
 							</div>
