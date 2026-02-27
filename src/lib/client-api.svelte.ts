@@ -1,10 +1,14 @@
-import type { PortfolioData, EnrichedTrade } from './etoro-api';
+import {
+	fetchPortfolio,
+	fetchTradeHistory,
+	type PortfolioData,
+	type EnrichedTrade,
+	type ApiKeys
+} from './etoro-api';
 
 const STORAGE_KEY = 'etoro-api-keys';
 
-type StoredKeys = { apiKey: string; userKey: string };
-
-function readKeys(): StoredKeys | null {
+function readKeys(): ApiKeys | null {
 	if (typeof localStorage === 'undefined') return null;
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
@@ -17,7 +21,7 @@ function readKeys(): StoredKeys | null {
 	}
 }
 
-function writeKeys(keys: StoredKeys | null) {
+function writeKeys(keys: ApiKeys | null) {
 	if (typeof localStorage === 'undefined') return;
 	if (keys) {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
@@ -27,7 +31,7 @@ function writeKeys(keys: StoredKeys | null) {
 }
 
 export function createClientApi() {
-	let keys = $state<StoredKeys | null>(readKeys());
+	let keys = $state<ApiKeys | null>(readKeys());
 	let portfolio = $state<PortfolioData | null>(null);
 	let trades = $state<EnrichedTrade[]>([]);
 	let loading = $state(false);
@@ -49,27 +53,14 @@ export function createClientApi() {
 		error = null;
 	}
 
-	async function fetchWithKeys<T>(url: string): Promise<T> {
-		if (!keys) throw new Error('No API keys configured');
-		const res = await fetch(url, {
-			headers: {
-				'x-etoro-api-key': keys.apiKey,
-				'x-etoro-user-key': keys.userKey
-			}
-		});
-		const data = await res.json();
-		if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
-		return data;
-	}
-
 	async function load() {
 		if (!keys) return;
 		loading = true;
 		error = null;
 		try {
 			const [p, t] = await Promise.all([
-				fetchWithKeys<PortfolioData>('/api/portfolio'),
-				fetchWithKeys<EnrichedTrade[]>('/api/trades?days=90').catch(() => [] as EnrichedTrade[])
+				fetchPortfolio(keys),
+				fetchTradeHistory(keys, 90).catch(() => [] as EnrichedTrade[])
 			]);
 			portfolio = p;
 			trades = t;
