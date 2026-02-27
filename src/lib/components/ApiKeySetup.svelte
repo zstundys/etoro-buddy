@@ -8,6 +8,7 @@
 		loading = false,
 		refreshing = false,
 		lastLoaded = null,
+		fromCache = false,
 		compact = false
 	}: {
 		onsubmit: (apiKey: string, userKey: string) => void;
@@ -18,6 +19,7 @@
 		loading?: boolean;
 		refreshing?: boolean;
 		lastLoaded?: Date | null;
+		fromCache?: boolean;
 		compact?: boolean;
 	} = $props();
 
@@ -63,7 +65,7 @@
 		</div>
 		<span class="text-sm text-text-secondary">Using your API keys</span>
 		{#if lastLoaded}
-			<span class="text-xs text-text-secondary/60">&middot; Updated {formatLastLoaded(lastLoaded)}</span>
+			<span class="text-xs text-text-secondary/60">&middot; {fromCache ? 'Cached' : 'Updated'} {formatLastLoaded(lastLoaded)}</span>
 		{/if}
 		<div class="ml-auto flex items-center gap-2">
 			<button

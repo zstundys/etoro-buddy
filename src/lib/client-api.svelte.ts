@@ -90,6 +90,7 @@ export function createClientApi() {
 	let refreshing = $state(false);
 	let error = $state<string | null>(null);
 	let lastLoaded = $state<Date | null>(readLastLoaded());
+	let fromCache = $state(cached !== null);
 
 	const hasKeys = $derived(keys !== null);
 
@@ -122,6 +123,7 @@ export function createClientApi() {
 			]);
 			portfolio = p;
 			trades = t;
+			fromCache = false;
 			const now = new Date();
 			lastLoaded = now;
 			writeLastLoaded(now);
@@ -145,6 +147,7 @@ export function createClientApi() {
 			]);
 			portfolio = p;
 			trades = t;
+			fromCache = false;
 			error = null;
 			const now = new Date();
 			lastLoaded = now;
@@ -166,6 +169,7 @@ export function createClientApi() {
 		get refreshing() { return refreshing; },
 		get error() { return error; },
 		get lastLoaded() { return lastLoaded; },
+		get fromCache() { return fromCache; },
 		saveKeys,
 		clearKeys,
 		load,

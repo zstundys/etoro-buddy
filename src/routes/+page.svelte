@@ -58,6 +58,7 @@
 		loading={client.loading}
 		refreshing={client.refreshing}
 		lastLoaded={client.lastLoaded}
+		fromCache={client.fromCache}
 		compact={hasData && !client.hasKeys}
 	/>
 </div>
