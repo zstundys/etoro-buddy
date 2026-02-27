@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as d3 from 'd3';
-	import type { EnrichedPosition, EnrichedTrade } from '$lib/etoro';
+	import type { EnrichedPosition, EnrichedTrade } from '$lib/etoro-api';
 	import { COLORS } from '$lib/chart-utils';
 	import { currency as fmt, shortDate } from '$lib/format';
 

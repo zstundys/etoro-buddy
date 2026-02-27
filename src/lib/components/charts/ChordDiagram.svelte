@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as d3 from 'd3';
-	import type { EnrichedPosition } from '$lib/etoro';
+	import type { EnrichedPosition } from '$lib/etoro-api';
 	import { COLORS, categoryColors } from '$lib/chart-utils';
 	import { currency as fmt, normalizeSymbol } from '$lib/format';
 
@@ -260,7 +260,6 @@
 			.style('opacity', (c: ChordWithRadius) => getRibbonOpacity(c as unknown as d3.Chord))
 			.attr('d', (d) => ribbon(d) ?? '')
 			.on('mouseenter', function (event: MouseEvent, d: ChordWithRadius) {
-				const rect = containerEl!.getBoundingClientRect();
 				const meta = chordMeta.find(
 					(m) =>
 						(m.sourceIdx === d.source.index && m.targetIdx === d.target.index) ||
@@ -270,8 +269,8 @@
 					hoveredRibbon = { sourceIdx: d.source.index, targetIdx: d.target.index };
 					tooltip = {
 						show: true,
-						x: event.clientX - rect.left,
-						y: event.clientY - rect.top,
+						x: event.clientX,
+						y: event.clientY,
 						month: meta.month,
 						symbol: meta.symbol,
 						amount: meta.amount
@@ -279,8 +278,7 @@
 				}
 			})
 			.on('mousemove', function (event: MouseEvent) {
-				const rect = containerEl!.getBoundingClientRect();
-				tooltip = { ...tooltip, x: event.clientX - rect.left, y: event.clientY - rect.top };
+				tooltip = { ...tooltip, x: event.clientX, y: event.clientY };
 			})
 			.on('mouseleave', () => {
 				hoveredRibbon = null;
@@ -318,7 +316,7 @@
 	{#if tooltip.show}
 		<div
 			class="bg-surface-raised border border-border rounded-lg shadow-xl px-3 py-2 text-xs pointer-events-none"
-			style="position: absolute; left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50"
+			style="position: fixed; left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50"
 		>
 			<div class="font-semibold text-text-primary">{tooltip.month} → {tooltip.symbol}</div>
 			<div class="mt-1 text-text-secondary">Amount: {fmt.format(tooltip.amount)}</div>

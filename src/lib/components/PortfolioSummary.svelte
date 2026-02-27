@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PortfolioData } from '$lib/etoro';
+	import type { PortfolioData } from '$lib/etoro-api';
 	import { currency as fmt, percent as pctFmt, pnlColor, pnlSign } from '$lib/format';
 
 	let { portfolio }: { portfolio: PortfolioData } = $props();

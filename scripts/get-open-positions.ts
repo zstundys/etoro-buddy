@@ -8,12 +8,12 @@
 const BASE_URL = "https://public-api.etoro.com";
 
 function getHeaders(): Record<string, string> {
-  const apiKey = process.env.ETORO_API_KEY ?? process.env.ETORO_KEY;
-  const userKey = process.env.ETORO_USER_KEY ?? process.env.ETORO_KEY;
+  const apiKey = process.env.ETORO_API_KEY;
+  const userKey = process.env.ETORO_USER_KEY;
 
   if (!apiKey || !userKey) {
     throw new Error(
-      "Missing ETORO_API_KEY and ETORO_USER_KEY (or ETORO_KEY for both). Add them to .env"
+      "Missing ETORO_API_KEY and ETORO_USER_KEY. Add them to .env"
     );
   }
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { EnrichedPosition, EnrichedTrade } from '$lib/etoro';
+	import type { EnrichedPosition, EnrichedTrade } from '$lib/etoro-api';
 	import Treemap from './Treemap.svelte';
 	import BubbleScatter from './BubbleScatter.svelte';
 	import Streamgraph from './Streamgraph.svelte';
@@ -8,7 +8,6 @@
 	import Beeswarm from './Beeswarm.svelte';
 	import Timeline from './Timeline.svelte';
 	import FeesWaterfall from './FeesWaterfall.svelte';
-	import RiskScatter from './RiskScatter.svelte';
 	import ChordDiagram from './ChordDiagram.svelte';
 
 	let { positions, trades }: { positions: EnrichedPosition[]; trades: EnrichedTrade[] } = $props();
@@ -67,11 +66,6 @@
 			<div class="rounded-xl border border-border bg-surface-raised p-5">
 				<h3 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Fees &amp; Dividends</h3>
 				<FeesWaterfall {positions} />
-			</div>
-
-			<div class="rounded-xl border border-border bg-surface-raised p-5">
-				<h3 class="mb-3 text-xs font-medium uppercase tracking-wider text-text-secondary">Leverage vs Performance</h3>
-				<RiskScatter {positions} />
 			</div>
 
 			<div class="col-span-1 rounded-xl border border-border bg-surface-raised p-5 lg:col-span-2">

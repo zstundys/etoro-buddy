@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as d3 from 'd3';
-	import type { EnrichedPosition } from '$lib/etoro';
+	import type { EnrichedPosition } from '$lib/etoro-api';
 	import { COLORS, pnlColorScale, groupBySymbol, type SymbolSummary } from '$lib/chart-utils';
 	import { currency as fmt, percent as pctFmt } from '$lib/format';
 
@@ -112,11 +112,10 @@
 
 		tile
 			.on('mouseenter', function (event, d) {
-				const rect = containerEl!.getBoundingClientRect();
 				tooltip = {
 					show: true,
-					x: event.clientX - rect.left,
-					y: event.clientY - rect.top,
+					x: event.clientX,
+					y: event.clientY,
 					symbol: d.data.symbol,
 					amount: d.data.totalAmount,
 					pnl: d.data.totalPnl,
@@ -125,8 +124,7 @@
 				};
 			})
 			.on('mousemove', function (event) {
-				const rect = containerEl!.getBoundingClientRect();
-				tooltip = { ...tooltip, x: event.clientX - rect.left, y: event.clientY - rect.top };
+				tooltip = { ...tooltip, x: event.clientX, y: event.clientY };
 			})
 			.on('mouseleave', () => {
 				tooltip = { ...tooltip, show: false };
@@ -137,7 +135,7 @@
 <div class="relative" bind:this={containerEl} style="height: {HEIGHT}px">
 	{#if tooltip.show}
 		<div
-			class="pointer-events-none absolute rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs shadow-xl"
+			class="pointer-events-none fixed rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs shadow-xl"
 			style="left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50"
 		>
 			<div class="font-semibold text-text-primary">{tooltip.symbol}</div>

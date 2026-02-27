@@ -1,6 +1,6 @@
 import * as d3 from 'd3';
 import { normalizeSymbol } from '$lib/format';
-import type { EnrichedPosition } from '$lib/etoro';
+import type { EnrichedPosition } from '$lib/etoro-api';
 
 function cssVar(name: string, fallback: string): string {
 	if (typeof document === 'undefined') return fallback;

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as d3 from 'd3';
-	import type { EnrichedPosition } from '$lib/etoro';
+	import type { EnrichedPosition } from '$lib/etoro-api';
 	import { COLORS } from '$lib/chart-utils';
 	import { currency as fmt, percent as pctFmt, normalizeSymbol } from '$lib/format';
 
@@ -139,11 +139,10 @@
 
 		circles
 			.on('mouseenter', function (event, d) {
-				const rect = containerEl!.getBoundingClientRect();
 				tooltip = {
 					show: true,
-					x: event.clientX - rect.left,
-					y: event.clientY - rect.top,
+					x: event.clientX,
+					y: event.clientY,
 					symbol: normalizeSymbol(d.symbol ?? `#${d.instrumentId}`),
 					amount: d.amount,
 					pnl: d.pnl,
@@ -151,8 +150,7 @@
 				};
 			})
 			.on('mousemove', function (event) {
-				const rect = containerEl!.getBoundingClientRect();
-				tooltip = { ...tooltip, x: event.clientX - rect.left, y: event.clientY - rect.top };
+				tooltip = { ...tooltip, x: event.clientX, y: event.clientY };
 			})
 			.on('mouseleave', () => {
 				tooltip = { ...tooltip, show: false };
@@ -173,7 +171,7 @@
 	{#if tooltip.show}
 		<div
 			class="bg-surface-raised border border-border rounded-lg shadow-xl px-3 py-2 text-xs pointer-events-none"
-			style="position: absolute; left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50"
+			style="position: fixed; left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50"
 		>
 			<div class="font-semibold text-text-primary">{tooltip.symbol}</div>
 			<div class="mt-1 text-text-secondary">Invested: {fmt.format(tooltip.amount)}</div>

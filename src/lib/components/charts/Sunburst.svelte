@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as d3 from 'd3';
-	import type { EnrichedPosition } from '$lib/etoro';
+	import type { EnrichedPosition } from '$lib/etoro-api';
 	import { COLORS, pnlColorScale, groupBySymbol, buildLogoColorMap, categoryColors } from '$lib/chart-utils';
 	import { currency as fmt, normalizeSymbol, percent as pctFmt, shortDate as dateFmt } from '$lib/format';
 
@@ -143,14 +143,13 @@
 			.attr('stroke-width', 0.5)
 			.style('cursor', 'pointer')
 			.on('mouseenter', function (event, d) {
-				const rect = containerEl!.getBoundingClientRect();
 				const data = d.data;
 				if ('totalAmount' in data) {
 					const sd = data as SymbolNode;
 					tooltip = {
 						show: true,
-						x: event.clientX - rect.left,
-						y: event.clientY - rect.top,
+						x: event.clientX,
+						y: event.clientY,
 						symbol: sd.name,
 						amount: sd.totalAmount,
 						pnl: sd.totalPnl,
@@ -161,8 +160,8 @@
 					const pd = data as PosNode;
 					tooltip = {
 						show: true,
-						x: event.clientX - rect.left,
-						y: event.clientY - rect.top,
+						x: event.clientX,
+						y: event.clientY,
 						symbol: pd.name,
 						amount: pd.amount,
 						pnl: pd.pnl,
@@ -172,8 +171,7 @@
 				}
 			})
 			.on('mousemove', function (event) {
-				const rect = containerEl!.getBoundingClientRect();
-				tooltip = { ...tooltip, x: event.clientX - rect.left, y: event.clientY - rect.top };
+				tooltip = { ...tooltip, x: event.clientX, y: event.clientY };
 			})
 			.on('mouseleave', () => { tooltip = { ...tooltip, show: false }; })
 			.on('click', function (_event, d) {
@@ -259,7 +257,7 @@
 <div class="relative flex justify-center" bind:this={containerEl} style="min-height: {SIZE}px">
 	{#if tooltip.show}
 		<div
-			class="pointer-events-none absolute rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs shadow-xl"
+			class="pointer-events-none fixed rounded-lg border border-border bg-surface-raised px-3 py-2 text-xs shadow-xl"
 			style="left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50"
 		>
 			<div class="font-semibold text-text-primary">{tooltip.symbol}</div>

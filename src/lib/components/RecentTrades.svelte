@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { EnrichedTrade, EnrichedPosition } from '$lib/etoro';
+	import type { EnrichedTrade, EnrichedPosition } from '$lib/etoro-api';
 	import { currency as fmt, percent as pctFmt, shortDate as dateFmt, pnlColor, pnlSign, normalizeSymbol } from '$lib/format';
 
 	let { trades, positions }: { trades: EnrichedTrade[]; positions: EnrichedPosition[] } = $props();

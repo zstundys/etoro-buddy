@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { EnrichedPosition } from '$lib/etoro';
+	import type { EnrichedPosition } from '$lib/etoro-api';
 	import { currency as fmt, percent as pctFmt, shortDate as dateFmt, monthYear as monthFmt, pnlColor, pnlSign, normalizeSymbol } from '$lib/format';
 	import DateRangeFilter from './DateRangeFilter.svelte';
 
@@ -21,9 +21,10 @@
 			if (t < min) min = t;
 			if (t > max) max = t;
 		}
-		return min <= max
-			? { min: new Date(min), max: new Date(max) }
-			: { min: new Date(), max: new Date() };
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		if (min > max) return { min: today, max: today };
+		return { min: new Date(min), max: new Date(Math.max(max, today.getTime())) };
 	});
 
 	let filterStart = $state<Date | null>(null);
