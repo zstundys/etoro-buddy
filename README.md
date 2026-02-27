@@ -1,42 +1,74 @@
-# sv
+# eToro Buddy
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your open positions, trade history, and performance metrics. Built with SvelteKit, D3, and Tailwind CSS.
 
-## Creating a project
+**Live demo:** [zstundys.github.io/etoro-buddy](https://zstundys.github.io/etoro-buddy/)
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Features
+
+- **Portfolio overview** — total invested, P&L, and per-position breakdowns
+- **Positions table** — sortable, grouped by symbol or date with expandable detail rows
+- **Date range filtering** — narrow the view to any time window
+- **Recent trades** — latest trade history with buy/sell indicators
+- **D3 visualizations:**
+  - Portfolio Allocation (treemap)
+  - Timing vs Performance (bubble scatter)
+  - Capital Over Time (streamgraph)
+  - Sector Breakdown (sunburst)
+  - P&L Distribution (beeswarm)
+  - Trade Activity (calendar heatmap)
+  - Position Lifespans (timeline)
+  - Fees & Dividends (waterfall)
+  - Monthly Capital Flow (chord diagram)
+
+## Getting your API keys
+
+1. Log in to [etoro.com](https://www.etoro.com)
+2. Go to **Settings → Trading → API Key Management**
+3. Create a new key (choose **Real Portfolio** and **Read** permissions)
+4. Copy both the **API Key** and **User Key**
+
+## Setup
 
 ```sh
-# create a new project
-npx sv create my-app
+bun install
 ```
 
-To recreate this project with the same configuration:
+### Option A: Client-side only (no server keys)
+
+Just run the app and enter your keys in the UI — data is fetched directly from the eToro API in your browser. Keys are stored in `localStorage` and never leave your machine.
 
 ```sh
-# recreate this project
-bun x sv create --template minimal --types ts --install bun .
+bun dev
 ```
 
-## Developing
+### Option B: Server-side keys (local dev)
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Create a `.env` file (see `.env.example`):
+
+```
+ETORO_API_KEY=your_api_key
+ETORO_USER_KEY=your_user_key
+```
 
 ```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+bun dev
 ```
+
+The server loads data on page render. You can still override with client-side keys in the UI.
 
 ## Building
 
-To create a production version of your app:
+Static build (for deployment):
 
 ```sh
-npm run build
+bun run build
 ```
 
-You can preview the production build with `npm run preview`.
+Output goes to `build/`. The site is a fully static SPA — no server required.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Deployment
+
+Pushes to `main` automatically build and deploy to GitHub Pages via the included workflow (`.github/workflows/deploy.yml`).
+
+To deploy elsewhere, serve the `build/` directory from any static host.
