@@ -8,6 +8,8 @@ import {
 
 const STORAGE_KEY = 'etoro-api-keys';
 const LAST_LOADED_KEY = 'etoro-last-loaded';
+const PORTFOLIO_KEY = 'etoro-portfolio';
+const TRADES_KEY = 'etoro-trades';
 
 function readKeys(): ApiKeys | null {
 	if (typeof localStorage === 'undefined') return null;
@@ -48,10 +50,42 @@ function writeLastLoaded(date: Date | null) {
 	}
 }
 
+function readCachedData(): { portfolio: PortfolioData; trades: EnrichedTrade[] } | null {
+	if (typeof localStorage === 'undefined') return null;
+	try {
+		const rawPortfolio = localStorage.getItem(PORTFOLIO_KEY);
+		const rawTrades = localStorage.getItem(TRADES_KEY);
+		if (!rawPortfolio) return null;
+		const portfolio = JSON.parse(rawPortfolio);
+		const trades = rawTrades ? JSON.parse(rawTrades) : [];
+		return { portfolio, trades };
+	} catch {
+		return null;
+	}
+}
+
+function writeCachedData(portfolio: PortfolioData, trades: EnrichedTrade[]) {
+	if (typeof localStorage === 'undefined') return;
+	try {
+		localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(portfolio));
+		localStorage.setItem(TRADES_KEY, JSON.stringify(trades));
+	} catch {
+		// localStorage quota exceeded — silently ignore
+	}
+}
+
+function clearCachedData() {
+	if (typeof localStorage === 'undefined') return;
+	localStorage.removeItem(PORTFOLIO_KEY);
+	localStorage.removeItem(TRADES_KEY);
+}
+
 export function createClientApi() {
+	const cached = readKeys() ? readCachedData() : null;
+
 	let keys = $state<ApiKeys | null>(readKeys());
-	let portfolio = $state<PortfolioData | null>(null);
-	let trades = $state<EnrichedTrade[]>([]);
+	let portfolio = $state<PortfolioData | null>(cached?.portfolio ?? null);
+	let trades = $state<EnrichedTrade[]>(cached?.trades ?? []);
 	let loading = $state(false);
 	let refreshing = $state(false);
 	let error = $state<string | null>(null);
@@ -73,10 +107,12 @@ export function createClientApi() {
 		error = null;
 		lastLoaded = null;
 		writeLastLoaded(null);
+		clearCachedData();
 	}
 
 	async function load() {
 		if (!keys) return;
+		if (portfolio !== null) return;
 		loading = true;
 		error = null;
 		try {
@@ -89,6 +125,7 @@ export function createClientApi() {
 			const now = new Date();
 			lastLoaded = now;
 			writeLastLoaded(now);
+			writeCachedData(p, t);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load data';
 			portfolio = null;
@@ -112,6 +149,7 @@ export function createClientApi() {
 			const now = new Date();
 			lastLoaded = now;
 			writeLastLoaded(now);
+			writeCachedData(p, t);
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to refresh data';
 		} finally {
