@@ -7,9 +7,10 @@
 		startDate: Date;
 		endDate: Date;
 		onchange: (start: Date, end: Date) => void;
+		minimal?: boolean;
 	};
 
-	let { minDate, maxDate, startDate, endDate, onchange }: Props = $props();
+	let { minDate, maxDate, startDate, endDate, onchange, minimal = false }: Props = $props();
 
 	const msPerDay = 86_400_000;
 
@@ -224,6 +225,23 @@
 	}
 </script>
 
+{#if minimal}
+<div class="flex flex-wrap items-center gap-1">
+	{#each quickPicks as qp (qp.label)}
+		<button
+			onclick={() => pickRange(qp.months)}
+			class="rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors {isActivePick(qp.months) ? 'bg-brand text-surface' : 'text-text-secondary hover:bg-surface-overlay hover:text-text-primary'}"
+		>
+			{qp.label}
+		</button>
+	{/each}
+	{#if isFiltered}
+		<span class="ml-1 text-[10px] text-text-secondary">
+			{dateFmt.format(startDate)} – {dateFmt.format(endDate)}
+		</span>
+	{/if}
+</div>
+{:else}
 <div class="overflow-x-auto rounded-xl border border-border bg-surface-raised px-5 py-4">
 	<div class="min-w-fit">
 	<div class="flex items-center justify-between gap-4">
@@ -333,6 +351,7 @@
 	{/if}
 	</div>
 </div>
+{/if}
 
 <style>
 	.range-thumb {
