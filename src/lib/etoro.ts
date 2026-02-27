@@ -1,17 +1,17 @@
-import { ETORO_API_KEY, ETORO_USER_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { fetchPortfolio as _fetchPortfolio, fetchTradeHistory as _fetchTradeHistory } from './etoro-api';
 
 export type { Position, Instrument, Rate, Trade, EnrichedPosition, EnrichedTrade, PortfolioData, ApiKeys } from './etoro-api';
 
 function envKeys() {
-	if (!ETORO_API_KEY || !ETORO_USER_KEY) {
+	if (!env.ETORO_API_KEY || !env.ETORO_USER_KEY) {
 		throw new Error('Missing ETORO_API_KEY or ETORO_USER_KEY in .env');
 	}
-	return { apiKey: ETORO_API_KEY, userKey: ETORO_USER_KEY };
+	return { apiKey: env.ETORO_API_KEY, userKey: env.ETORO_USER_KEY };
 }
 
 export function hasSystemKeys(): boolean {
-	return !!(ETORO_API_KEY && ETORO_USER_KEY);
+	return !!(env.ETORO_API_KEY && env.ETORO_USER_KEY);
 }
 
 export function fetchPortfolio() {
