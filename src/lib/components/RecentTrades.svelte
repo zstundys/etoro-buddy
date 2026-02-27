@@ -124,7 +124,7 @@
 							<th class="px-3 py-2.5 text-right">Invested</th>
 							<th class="px-3 py-2.5 text-right">Open</th>
 							<th class="px-3 py-2.5 text-right">Close / Current</th>
-							<th class="px-3 py-2.5 text-right">Fees</th>
+							<th class="px-3 py-2.5 text-right">Fees / Div</th>
 							<th class="px-3 py-2.5 text-right">P&L</th>
 							<th class="py-2.5 pl-3 pr-5 text-right">Return</th>
 						</tr>
@@ -174,8 +174,8 @@
 										—
 									{/if}
 								</td>
-								<td class="px-3 py-2.5 text-right tabular-nums text-text-secondary">
-									{row.fees !== 0 ? fmt.format(row.fees) : '—'}
+								<td class="px-3 py-2.5 text-right tabular-nums {row.fees < 0 ? 'text-gain' : row.fees > 0 ? 'text-loss' : 'text-text-secondary'}">
+									{row.fees !== 0 ? `${row.fees < 0 ? '+' : ''}${fmt.format(Math.abs(row.fees))}` : '—'}
 								</td>
 								<td class="px-3 py-2.5 text-right tabular-nums font-medium {pnlColor(row.pnl)}">
 									{row.pnl !== undefined ? `${pnlSign(row.pnl)}${fmt.format(row.pnl)}` : '—'}
