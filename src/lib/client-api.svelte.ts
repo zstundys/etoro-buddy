@@ -4,10 +4,14 @@ import {
   fetchAllCandles,
   fetchInstruments,
   fetchStocksIndustries,
+  fetchWatchlists as apiFetchWatchlists,
+  fetchWatchlistInstruments,
   type PortfolioData,
   type EnrichedTrade,
   type ApiKeys,
   type Candle,
+  type Watchlist,
+  type InstrumentSnapshot,
 } from "./etoro-api";
 import { env } from "$env/dynamic/public";
 
@@ -109,6 +113,11 @@ export function createClientApi() {
   let sectorMap = $state<Map<number, string>>(new Map());
   let sectorMapLoading = $state(false);
   let sectorMapLoaded = $state(false);
+  let watchlists = $state<Watchlist[]>([]);
+  let watchlistsLoaded = $state(false);
+  let watchlistInstruments = $state<InstrumentSnapshot[]>([]);
+  let watchlistCandles = $state<Map<number, Candle[]>>(new Map());
+  let watchlistLoading = $state(false);
 
   const hasKeys = $derived(keys !== null);
 
@@ -194,6 +203,41 @@ export function createClientApi() {
     }
   }
 
+  async function loadWatchlists() {
+    if (!keys || watchlistsLoaded) return;
+    try {
+      watchlists = await apiFetchWatchlists(keys);
+      watchlistsLoaded = true;
+    } catch {
+      watchlistsLoaded = true;
+    }
+  }
+
+  async function loadWatchlistData(watchlistId: string) {
+    if (!keys || watchlistLoading) return;
+    const wl = watchlists.find((w) => w.id === watchlistId);
+    if (!wl || wl.instrumentIds.length === 0) return;
+    watchlistLoading = true;
+    watchlistInstruments = [];
+    watchlistCandles = new Map();
+    try {
+      const instruments = await fetchWatchlistInstruments(
+        keys,
+        wl.instrumentIds,
+      );
+      watchlistInstruments = instruments;
+      const ids = instruments.map((i) => i.instrumentId);
+      if (ids.length > 0) {
+        watchlistCandles = await fetchAllCandles(keys, ids, 250);
+      }
+    } catch {
+      watchlistInstruments = [];
+      watchlistCandles = new Map();
+    } finally {
+      watchlistLoading = false;
+    }
+  }
+
   async function refresh() {
     if (!keys || refreshing || loading) return;
     refreshing = true;
@@ -254,11 +298,25 @@ export function createClientApi() {
     get sectorMap() {
       return sectorMap;
     },
+    get watchlists() {
+      return watchlists;
+    },
+    get watchlistInstruments() {
+      return watchlistInstruments;
+    },
+    get watchlistCandles() {
+      return watchlistCandles;
+    },
+    get watchlistLoading() {
+      return watchlistLoading;
+    },
     saveKeys,
     clearKeys,
     load,
     loadCandles,
     loadSectorMap,
+    loadWatchlists,
+    loadWatchlistData,
     refresh,
   };
 }

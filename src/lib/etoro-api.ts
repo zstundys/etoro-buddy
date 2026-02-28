@@ -151,6 +151,16 @@ export type EnrichedPosition = Position & {
   pnlPercent?: number;
 };
 
+export type Watchlist = { id: string; name: string; instrumentIds: number[] };
+
+export type InstrumentSnapshot = {
+  instrumentId: number;
+  symbol?: string;
+  displayName?: string;
+  logoUrl?: string;
+  currentRate?: number;
+};
+
 export type EnrichedTrade = Trade & {
   symbol?: string;
   displayName?: string;
@@ -199,7 +209,10 @@ export async function fetchInstruments(
   }
 }
 
-async function fetchRates(keys: ApiKeys, ids: number[]): Promise<Rate[]> {
+export async function fetchRates(
+  keys: ApiKeys,
+  ids: number[],
+): Promise<Rate[]> {
   try {
     const res = await fetch(
       `${BASE_URL}/market-data/instruments/rates?instrumentIds=${ids.join(",")}`,
@@ -391,4 +404,66 @@ export async function fetchAllCandles(
     Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () => worker()),
   );
   return result;
+}
+
+export async function fetchWatchlists(keys: ApiKeys): Promise<Watchlist[]> {
+  try {
+    const res = await fetch(
+      `${BASE_URL}/watchlists?itemsPerPageForSingle=200`,
+      { headers: buildHeaders(keys) },
+    );
+    if (!res.ok) return [];
+    const json = await res.json();
+    const lists = json?.watchlists ?? json ?? [];
+    if (!Array.isArray(lists)) return [];
+    return lists.flatMap((w: Record<string, unknown>) => {
+      const raw = w.WatchlistId ?? w.watchlistId ?? w.id;
+      const id = raw != null ? String(raw) : undefined;
+      const name = (w.Name ?? w.name ?? w.displayName) as string | undefined;
+      if (!id || !name) return [];
+
+      const items = (w.Items ?? w.items ?? []) as Array<
+        Record<string, unknown>
+      >;
+      const instrumentIds = items
+        .filter((it) => (it.ItemType ?? it.itemType) === "Instrument")
+        .map((it) => Number(it.ItemId ?? it.itemId ?? 0))
+        .filter((n) => n > 0);
+
+      if (instrumentIds.length === 0) return [];
+      return [{ id, name, instrumentIds }];
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchWatchlistInstruments(
+  keys: ApiKeys,
+  instrumentIds: number[],
+): Promise<InstrumentSnapshot[]> {
+  if (instrumentIds.length === 0) return [];
+  try {
+    const [instruments, rates] = await Promise.all([
+      fetchInstruments(keys, instrumentIds),
+      fetchRates(keys, instrumentIds),
+    ]);
+
+    const instrumentMap = new Map(instruments.map((i) => [i.instrumentId, i]));
+    const rateMap = new Map(rates.map((r) => [r.instrumentId, r]));
+
+    return instrumentIds.map((id) => {
+      const info = instrumentMap.get(id);
+      const rate = rateMap.get(id);
+      return {
+        instrumentId: id,
+        symbol: info?.symbol,
+        displayName: info?.displayName,
+        logoUrl: info?.logoUrl,
+        currentRate: rate ? rate.bid : undefined,
+      };
+    });
+  } catch {
+    return [];
+  }
 }

@@ -22,6 +22,10 @@ A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your op
 
   ![Positions table](screenshots/positions-table.png)
 
+- **Buying opportunities** — price change heatmap (1D, 7D, 1M, 3M, 6M, YTD) and 200-day moving average distance for your positions or any watchlist
+
+  ![Buying opportunities](screenshots/buying-opportunities.png)
+
 - **Date range filtering** — narrow the view to any time window
 - **Recent trades** — latest trade history with buy/sell indicators
 - **D3 visualizations:**

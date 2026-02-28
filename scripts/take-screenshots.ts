@@ -206,15 +206,27 @@ async function main() {
     console.log("  ✓ portfolio-summary.png");
   }
 
-  // Positions table (scroll to header, viewport shot)
-  const positionsHeader = page
-    .locator("p", { hasText: /\d+ positions? across/ })
+  // Positions table (scroll to heading, viewport shot)
+  const positionsSection = page
+    .locator("section")
+    .filter({ has: page.locator("h2", { hasText: "Positions" }) })
     .first();
-  if (await positionsHeader.isVisible()) {
-    await positionsHeader.scrollIntoViewIfNeeded();
+  if (await positionsSection.isVisible()) {
+    await positionsSection.locator("h2").first().scrollIntoViewIfNeeded();
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(OUT, "positions-table.png") });
     console.log("  ✓ positions-table.png");
+  }
+
+  // Buying Opportunities table (scroll to heading, viewport shot)
+  const buyingOpportunitiesH2 = page
+    .locator("h2", { hasText: "Buying Opportunities" })
+    .first();
+  if (await buyingOpportunitiesH2.isVisible()) {
+    await buyingOpportunitiesH2.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(OUT, "buying-opportunities.png") });
+    console.log("  ✓ buying-opportunities.png");
   }
 
   // Individual charts — one per ChartCard in ChartsDashboard

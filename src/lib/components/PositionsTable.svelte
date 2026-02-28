@@ -338,6 +338,7 @@
       <p class="text-lg text-text-secondary">No open positions</p>
     </div>
   {:else}
+    <h2 class="mb-3 text-lg font-semibold text-text-primary">Positions</h2>
     <div class="mb-4">
       <DateRangeFilter
         minDate={dateRange.min}

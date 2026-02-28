@@ -1,18 +1,21 @@
 <script lang="ts">
-  import type { EnrichedPosition, Candle } from "$lib/etoro-api";
-  import {
-    percent as pctFmt,
-    pnlColor,
-    pnlSign,
-    normalizeSymbol,
-  } from "$lib/format";
+  import type { InstrumentSnapshot, Candle, Watchlist } from "$lib/etoro-api";
+  import { percent as pctFmt, pnlSign, normalizeSymbol } from "$lib/format";
 
   let {
-    positions,
+    instruments,
     candleMap = new Map(),
+    watchlists = [],
+    selectedSource = "portfolio",
+    watchlistLoading = false,
+    onSourceChange,
   }: {
-    positions: EnrichedPosition[];
+    instruments: InstrumentSnapshot[];
     candleMap?: Map<number, Candle[]>;
+    watchlists?: Watchlist[];
+    selectedSource?: string;
+    watchlistLoading?: boolean;
+    onSourceChange?: (source: string) => void;
   } = $props();
 
   type OpportunityRow = {
@@ -112,14 +115,14 @@
   const rows = $derived.by<OpportunityRow[]>(() => {
     const groups = new Map<
       string,
-      { pos: EnrichedPosition; candles: Candle[] }
+      { inst: InstrumentSnapshot; candles: Candle[] }
     >();
-    for (const p of positions) {
+    for (const p of instruments) {
       const ticker = baseTicker(p.symbol ?? `#${p.instrumentId}`);
       const candles = candleMap.get(p.instrumentId) ?? [];
       const existing = groups.get(ticker);
       if (!existing || candles.length > existing.candles.length) {
-        groups.set(ticker, { pos: p, candles });
+        groups.set(ticker, { inst: p, candles });
       }
     }
 
@@ -138,11 +141,11 @@
 
     const result: OpportunityRow[] = [];
 
-    for (const [ticker, { pos, candles }] of groups) {
+    for (const [ticker, { inst, candles }] of groups) {
       if (candles.length < 2) continue;
 
       const latest = candles[candles.length - 1];
-      const currentPrice = pos.currentRate ?? latest.close;
+      const currentPrice = inst.currentRate ?? latest.close;
 
       const c1d = findCandleByDate(candles, d1);
       const c7d = findCandleByDate(candles, d7);
@@ -153,10 +156,10 @@
       const ma200 = sma(candles, 200);
 
       result.push({
-        instrumentId: pos.instrumentId,
+        instrumentId: inst.instrumentId,
         symbol: ticker,
-        displayName: pos.displayName,
-        logoUrl: pos.logoUrl,
+        displayName: inst.displayName,
+        logoUrl: inst.logoUrl,
         currentPrice,
         change1D: c1d ? pctChange(currentPrice, c1d.close) : undefined,
         change7D: c7d ? pctChange(currentPrice, c7d.close) : undefined,
@@ -217,29 +220,56 @@
   ];
 </script>
 
-{#if rows.length > 0}
+{#if instruments.length > 0 || watchlists.length > 0}
   <div>
-    <h2 class="mb-3 text-lg font-semibold text-text-primary">
-      Buying Opportunities
-    </h2>
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+      <h2 class="text-lg font-semibold text-text-primary">
+        Buying Opportunities
+      </h2>
+      {#if watchlists.length > 0}
+        <select
+          value={selectedSource}
+          onchange={(e) => onSourceChange?.(e.currentTarget.value)}
+          class="rounded-lg border border-border bg-surface-overlay px-3 py-1.5 text-xs text-text-primary outline-none transition-colors hover:border-brand/50 focus:border-brand"
+        >
+          <option value="portfolio">My Positions</option>
+          {#each watchlists as wl (wl.id)}
+            <option value={wl.id}>{wl.name}</option>
+          {/each}
+        </select>
+      {/if}
+      {#if watchlistLoading}
+        <div
+          class="h-4 w-4 animate-spin rounded-full border-2 border-brand/30 border-t-brand"
+        ></div>
+      {/if}
+    </div>
     <p class="mb-4 text-xs text-text-secondary">
       Price change from historical close and distance from 200-day moving
       average. Click column headers to sort.
     </p>
-    <div
-      class="overflow-x-auto rounded-xl border border-border bg-surface-raised"
-    >
-      <table class="w-full text-xs">
-        <thead>
-          <tr
-            class="border-b border-border text-[10px] font-medium uppercase tracking-wider text-text-secondary"
-          >
-            <th
-              class="sticky left-0 z-10 bg-surface-raised py-2.5 pl-4 pr-3 text-left"
+    {#if rows.length === 0}
+      <div
+        class="rounded-xl border border-border bg-surface-raised px-8 py-12 text-center"
+      >
+        <p class="text-sm text-text-secondary">
+          {watchlistLoading
+            ? "Loading instruments..."
+            : "No instrument data available for this source"}
+        </p>
+      </div>
+    {:else}
+      <div
+        class="overflow-x-auto rounded-xl border border-border bg-surface-raised"
+      >
+        <table class="w-full text-xs">
+          <thead>
+            <tr
+              class="border-b border-border text-[10px] font-medium uppercase tracking-wider text-text-secondary"
             >
-              <button
+              <th
                 onclick={() => toggleSort("symbol")}
-                class="hover:text-text-primary transition-colors"
+                class="sticky left-0 z-10 cursor-pointer select-none bg-surface-raised py-2.5 pl-4 pr-3 text-left transition-colors hover:text-text-primary"
               >
                 Instrument
                 {#if sortCol === "symbol"}
@@ -247,13 +277,11 @@
                     >{sortDir === "asc" ? "▲" : "▼"}</span
                   >
                 {/if}
-              </button>
-            </th>
-            {#each columns as col (col.key)}
-              <th class="whitespace-nowrap px-3 py-2.5 text-right">
-                <button
+              </th>
+              {#each columns as col (col.key)}
+                <th
                   onclick={() => toggleSort(col.key)}
-                  class="hover:text-text-primary transition-colors"
+                  class="cursor-pointer whitespace-nowrap select-none px-3 py-2.5 text-right transition-colors hover:text-text-primary"
                 >
                   {col.label}
                   {#if sortCol === col.key}
@@ -261,57 +289,60 @@
                       >{sortDir === "asc" ? "▲" : "▼"}</span
                     >
                   {/if}
-                </button>
-              </th>
-            {/each}
-          </tr>
-        </thead>
-        <tbody>
-          {#each sortedRows as row (row.instrumentId)}
-            <tr
-              class="border-b border-border/30 last:border-b-0 transition-colors hover:bg-surface-overlay/30"
-            >
-              <td class="sticky left-0 z-10 bg-surface-raised py-2.5 pl-4 pr-3">
-                <div class="flex items-center gap-2">
-                  {#if row.logoUrl}
-                    <img
-                      src={row.logoUrl}
-                      alt={row.symbol}
-                      class="h-5 w-5 shrink-0 rounded-full"
-                    />
-                  {:else}
-                    <div
-                      class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-[8px] font-bold text-text-secondary"
-                    >
-                      {row.symbol.slice(0, 2)}
-                    </div>
-                  {/if}
-                  <div class="leading-tight">
-                    <span class="font-medium text-text-primary"
-                      >{row.symbol}</span
-                    >
-                    {#if row.displayName}
-                      <span class="ml-1.5 hidden text-text-secondary sm:inline"
-                        >{row.displayName}</span
-                      >
-                    {/if}
-                  </div>
-                </div>
-              </td>
-              {#each columns as col (col.key)}
-                {@const value = row[col.field] as number | undefined}
-                <td
-                  class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums {cellColor(
-                    value,
-                  )}"
-                >
-                  {formatCell(value)}
-                </td>
+                </th>
               {/each}
             </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {#each sortedRows as row (row.instrumentId)}
+              <tr
+                class="border-b border-border/30 last:border-b-0 transition-colors hover:bg-surface-overlay/30"
+              >
+                <td
+                  class="sticky left-0 z-10 bg-surface-raised py-2.5 pl-4 pr-3"
+                >
+                  <div class="flex items-center gap-2">
+                    {#if row.logoUrl}
+                      <img
+                        src={row.logoUrl}
+                        alt={row.symbol}
+                        class="h-5 w-5 shrink-0 rounded-full"
+                      />
+                    {:else}
+                      <div
+                        class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-[8px] font-bold text-text-secondary"
+                      >
+                        {row.symbol.slice(0, 2)}
+                      </div>
+                    {/if}
+                    <div class="leading-tight">
+                      <span class="font-medium text-text-primary"
+                        >{row.symbol}</span
+                      >
+                      {#if row.displayName}
+                        <span
+                          class="ml-1.5 hidden text-text-secondary sm:inline"
+                          >{row.displayName}</span
+                        >
+                      {/if}
+                    </div>
+                  </div>
+                </td>
+                {#each columns as col (col.key)}
+                  {@const value = row[col.field] as number | undefined}
+                  <td
+                    class="whitespace-nowrap px-3 py-2.5 text-right tabular-nums {cellColor(
+                      value,
+                    )}"
+                  >
+                    {formatCell(value)}
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
   </div>
 {/if}

@@ -7,7 +7,12 @@
   import ChartsDashboard from "$lib/components/charts/ChartsDashboard.svelte";
   import ApiKeySetup from "$lib/components/ApiKeySetup.svelte";
   import { createClientApi } from "$lib/client-api.svelte";
-  import type { PortfolioData, EnrichedTrade, Candle } from "$lib/etoro-api";
+  import type {
+    PortfolioData,
+    EnrichedTrade,
+    Candle,
+    InstrumentSnapshot,
+  } from "$lib/etoro-api";
 
   let { data } = $props();
 
@@ -33,6 +38,25 @@
 
   const sectorMap = $derived<Map<number, string>>(client.sectorMap);
 
+  let opportunitySource = $state("portfolio");
+
+  const opportunityInstruments = $derived<InstrumentSnapshot[]>(
+    opportunitySource === "portfolio"
+      ? (portfolio?.positions ?? [])
+      : client.watchlistInstruments,
+  );
+
+  const opportunityCandleMap = $derived<Map<number, Candle[]>>(
+    opportunitySource === "portfolio" ? candleMap : client.watchlistCandles,
+  );
+
+  function handleSourceChange(source: string) {
+    opportunitySource = source;
+    if (source !== "portfolio") {
+      client.loadWatchlistData(source);
+    }
+  }
+
   $effect(() => {
     if (
       client.portfolio &&
@@ -47,6 +71,7 @@
   $effect(() => {
     if (client.portfolio && client.portfolio.positions.length > 0) {
       client.loadSectorMap();
+      client.loadWatchlists();
     }
   });
 
@@ -101,7 +126,14 @@
 {:else if hasData && portfolio}
   <div class="grid gap-y-10">
     <PortfolioSummary {portfolio} />
-    <BuyingOpportunities positions={portfolio.positions} {candleMap} />
+    <BuyingOpportunities
+      instruments={opportunityInstruments}
+      candleMap={opportunityCandleMap}
+      watchlists={client.watchlists}
+      selectedSource={opportunitySource}
+      watchlistLoading={client.watchlistLoading}
+      onSourceChange={handleSourceChange}
+    />
     <RecentTrades {trades} positions={portfolio.positions} />
     <PositionsTable positions={portfolio.positions} {candleMap} />
     <ChartsDashboard
