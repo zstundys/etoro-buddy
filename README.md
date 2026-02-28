@@ -3,7 +3,7 @@
 A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your open positions, trade history, and performance metrics. Built with SvelteKit, D3, and Tailwind CSS.
 
 > [!NOTE]
-> **Your data stays with you.** All API calls are made directly from your browser to the eToro API — no intermediary server collects or stores your data. API keys are saved in your browser's `localStorage` and never transmitted anywhere else. This app is a fully static site with no backend, analytics, or tracking.
+> **Your data stays with you.** All API calls are made directly from your browser to the [eToro API](https://api-portal.etoro.com/) — no intermediary server collects or stores your data. API keys are saved in your browser's `localStorage` and never transmitted anywhere else. This app is a fully static site with no backend, analytics, or tracking.
 
 **Live demo:** [zstundys.github.io/etoro-buddy](https://zstundys.github.io/etoro-buddy/)
 
@@ -28,6 +28,8 @@ A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your op
   - Monthly Capital Flow (chord diagram)
 
 ## Getting your API keys
+
+See the [eToro API Portal](https://api-portal.etoro.com/) for full documentation.
 
 1. Log in to [etoro.com](https://www.etoro.com)
 2. Go to **Settings → Trading → API Key Management**
