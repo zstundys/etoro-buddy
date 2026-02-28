@@ -6,78 +6,6 @@ const BASE_URL = process.env.SCREENSHOT_URL ?? "http://localhost:5173";
 const OUT = join(dirname(Bun.main), "..", "screenshots");
 const VIEWPORT = { width: 1440, height: 900 };
 
-/**
- * Wraps every dollar amount in a `<span style="filter:blur(…)">` so the
- * actual values are unreadable in screenshots. SVG text/tspan elements get
- * the filter applied directly.
- */
-async function blurDollarAmounts(page: Page) {
-  await page.evaluate(() => {
-    const BLUR = "6px";
-
-    // Matches dollar amounts ($1,234.56) and percentage values (12.34%)
-    const re = /[+-]?\s*\$[\d,]+(?:\.\d{0,2})?|[+-]?\d+(?:\.\d+)?%/g;
-    const test = /\$\d|\d%/;
-
-    // Collect all text nodes first (walking while mutating is unsafe)
-    const textNodes: Text[] = [];
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-    );
-    while (walker.nextNode()) textNodes.push(walker.currentNode as Text);
-
-    for (const node of textNodes) {
-      const text = node.textContent;
-      if (!text || !test.test(text)) continue;
-
-      const frag = document.createDocumentFragment();
-      let lastIdx = 0;
-      let match: RegExpExecArray | null;
-
-      re.lastIndex = 0;
-      while ((match = re.exec(text)) !== null) {
-        if (match.index > lastIdx) {
-          frag.appendChild(
-            document.createTextNode(text.slice(lastIdx, match.index)),
-          );
-        }
-
-        const wrapper = document.createElement("span");
-        wrapper.style.filter = `blur(${BLUR})`;
-        wrapper.appendChild(document.createTextNode(match[0]));
-
-        frag.appendChild(wrapper);
-        lastIdx = match.index + match[0].length;
-      }
-
-      if (lastIdx < text.length) {
-        frag.appendChild(document.createTextNode(text.slice(lastIdx)));
-      }
-
-      node.parentNode?.replaceChild(frag, node);
-    }
-
-    // SVG text elements
-    document.querySelectorAll("svg text, svg tspan").forEach((el) => {
-      if (el.textContent && test.test(el.textContent)) {
-        (el as SVGElement).style.filter = `blur(${BLUR})`;
-      }
-    });
-
-    // Summary-card values (plain numbers without $ or %) — Portfolio summary
-    // and Recent Activity stat cards. Target the value <p> inside each card by
-    // finding label + value pairs in the known card grids.
-    document
-      .querySelectorAll<HTMLElement>(
-        ".grid > .rounded-xl.border.border-border > p.text-lg",
-      )
-      .forEach((p) => {
-        if (!p.style.filter) p.style.filter = `blur(${BLUR})`;
-      });
-  });
-}
-
 async function screenshotChart(
   page: Page,
   chartsSection: ReturnType<Page["locator"]>,
@@ -181,8 +109,12 @@ async function main() {
   }
   await page.waitForTimeout(5_000);
 
-  console.log("→ Blurring dollar amounts...");
-  await blurDollarAmounts(page);
+  console.log("→ Enabling privacy mode...");
+  const privacyBtn = page.locator('button[aria-label="Hide values"]');
+  if (await privacyBtn.isVisible()) {
+    await privacyBtn.click();
+    await page.waitForTimeout(500);
+  }
 
   // --- Take screenshots ---
   console.log("→ Taking screenshots...");
@@ -206,13 +138,47 @@ async function main() {
     console.log("  ✓ portfolio-summary.png");
   }
 
-  // Positions table (scroll heading to top, viewport shot)
-  const positionsH2 = page
+  // Positions table (expand first group + first month, scroll heading to top)
+  const positionsSection = page
     .locator("section")
-    .filter({ has: page.locator("h2", { hasText: "Positions" }) })
-    .locator("h2")
-    .first();
+    .filter({ has: page.locator("h2", { hasText: "Positions" }) });
+  const positionsH2 = positionsSection.locator("h2").first();
   if (await positionsH2.isVisible()) {
+    await page.evaluate(() => {
+      const section = document.querySelector("section:has(h2)")!;
+      const headings = section?.querySelectorAll("h2");
+      let posSection: Element | null = null;
+      headings?.forEach((h) => {
+        if (h.textContent?.trim() === "Positions") posSection = h.closest("section");
+      });
+      if (!posSection) return;
+
+      // Click first group row (top-level expand button)
+      const firstGroupBtn = (posSection as Element).querySelector(
+        ".rounded-xl.border > button",
+      ) as HTMLElement | null;
+      firstGroupBtn?.click();
+    });
+    await page.waitForTimeout(300);
+
+    await page.evaluate(() => {
+      const section = document.querySelector("section:has(h2)")!;
+      const headings = section?.querySelectorAll("h2");
+      let posSection: Element | null = null;
+      headings?.forEach((h) => {
+        if (h.textContent?.trim() === "Positions") posSection = h.closest("section");
+      });
+      if (!posSection) return;
+
+      // Click first month row inside the expanded group
+      const borderTDiv = (posSection as Element).querySelector(
+        ".border-t.border-border",
+      );
+      const monthBtn = borderTDiv?.querySelector("button") as HTMLElement | null;
+      monthBtn?.click();
+    });
+    await page.waitForTimeout(300);
+
     await positionsH2.evaluate((el) =>
       el.scrollIntoView({ block: "start" }),
     );

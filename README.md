@@ -128,7 +128,7 @@ bun dev &
 bun run screenshots
 ```
 
-Dollar amounts are automatically obfuscated with randomized values before capture. Output goes to `screenshots/`.
+The built-in privacy mode is enabled before capture to blur sensitive values. Output goes to `screenshots/`.
 
 ## Building
 
