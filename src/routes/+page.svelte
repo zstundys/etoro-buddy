@@ -6,7 +6,7 @@
 	import ChartsDashboard from '$lib/components/charts/ChartsDashboard.svelte';
 	import ApiKeySetup from '$lib/components/ApiKeySetup.svelte';
 	import { createClientApi } from '$lib/client-api.svelte';
-	import type { PortfolioData, EnrichedTrade } from '$lib/etoro-api';
+	import type { PortfolioData, EnrichedTrade, Candle } from '$lib/etoro-api';
 
 	let { data } = $props();
 
@@ -26,11 +26,27 @@
 			: data.recentTrades
 	);
 
+	const candleMap = $derived<Map<number, Candle[]>>(client.candles);
+
 	const activeError = $derived(
 		client.hasKeys ? client.error : data.error
 	);
 
 	const hasData = $derived(portfolio !== null && portfolio.positions.length > 0);
+
+	const sectorMap = $derived<Map<number, string>>(client.sectorMap);
+
+	$effect(() => {
+		if (client.portfolio && client.portfolio.positions.length > 0 && client.candles.size === 0 && !client.candlesLoading) {
+			client.loadCandles();
+		}
+	});
+
+	$effect(() => {
+		if (client.portfolio && client.portfolio.positions.length > 0) {
+			client.loadSectorMap();
+		}
+	});
 
 	onMount(() => {
 		if (client.hasKeys) {
@@ -76,10 +92,13 @@
 	</div>
 {:else if hasData && portfolio}
 	<PortfolioSummary {portfolio} />
-	<PositionsTable positions={portfolio.positions} />
+	<PositionsTable positions={portfolio.positions} {candleMap} />
 	<ChartsDashboard
 		positions={portfolio.positions}
 		{trades}
+		{candleMap}
+		credit={portfolio.credit}
+		{sectorMap}
 	/>
 	<RecentTrades {trades} positions={portfolio.positions} />
 {/if}

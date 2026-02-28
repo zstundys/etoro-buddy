@@ -57,7 +57,8 @@ const InstrumentSchema = z
 			instrumentId: pick<number>(raw, ['instrumentID', 'instrumentId', 'InstrumentID'], 0),
 			displayName: pick<string | undefined>(raw, ['instrumentDisplayName', 'InstrumentDisplayName'], undefined),
 			symbol: pick<string | undefined>(raw, ['symbolFull', 'SymbolFull', 'internalSymbolFull', 'InternalSymbolFull'], undefined),
-			logoUrl: logo
+			logoUrl: logo,
+			stocksIndustryId: pick<number | undefined>(raw, ['stocksIndustryID', 'stocksIndustryId', 'StocksIndustryID'], undefined)
 		};
 	});
 
@@ -86,17 +87,31 @@ const TradeSchema = z
 		fees: pick<number>(raw, ['fees', 'Fees'], 0)
 	}));
 
+const CandleSchema = z
+	.record(z.string(), z.unknown())
+	.transform((raw) => ({
+		instrumentId: pick<number>(raw, ['instrumentID', 'instrumentId', 'InstrumentID'], 0),
+		date: pick<string>(raw, ['fromDate', 'FromDate'], ''),
+		open: pick<number>(raw, ['open', 'Open'], 0),
+		high: pick<number>(raw, ['high', 'High'], 0),
+		low: pick<number>(raw, ['low', 'Low'], 0),
+		close: pick<number>(raw, ['close', 'Close'], 0),
+		volume: pick<number>(raw, ['volume', 'Volume'], 0)
+	}));
+
 // --- Types ---
 
 export type Position = z.output<typeof PositionSchema>;
 export type Instrument = z.output<typeof InstrumentSchema>;
 export type Rate = z.output<typeof RateSchema>;
 export type Trade = z.output<typeof TradeSchema>;
+export type Candle = z.output<typeof CandleSchema>;
 
 export type EnrichedPosition = Position & {
 	symbol?: string;
 	displayName?: string;
 	logoUrl?: string;
+	stocksIndustryId?: number;
 	currentRate?: number;
 	pnl?: number;
 	pnlPercent?: number;
@@ -129,7 +144,7 @@ function safeParseArray<T>(schema: { safeParse(input: unknown): { success: true;
 	});
 }
 
-async function fetchInstruments(keys: ApiKeys, ids: number[]): Promise<Instrument[]> {
+export async function fetchInstruments(keys: ApiKeys, ids: number[]): Promise<Instrument[]> {
 	try {
 		const res = await fetch(
 			`${BASE_URL}/market-data/instruments?instrumentIds=${ids.join(',')}`,
@@ -178,10 +193,31 @@ function enrichPositions(rawPositions: Position[], instruments: Instrument[], ra
 		totalInvested += pos.amount;
 		if (pnl !== undefined) totalPnl += pnl;
 
-		return { ...pos, symbol: info?.symbol, displayName: info?.displayName, logoUrl: info?.logoUrl, currentRate, pnl, pnlPercent };
+		return { ...pos, symbol: info?.symbol, displayName: info?.displayName, logoUrl: info?.logoUrl, stocksIndustryId: info?.stocksIndustryId, currentRate, pnl, pnlPercent };
 	});
 
 	return { positions, totalInvested, totalPnl };
+}
+
+export async function fetchStocksIndustries(keys: ApiKeys): Promise<Map<number, string>> {
+	try {
+		const res = await fetch(
+			`${BASE_URL}/market-data/stocks-industries`,
+			{ headers: buildHeaders(keys) }
+		);
+		if (!res.ok) return new Map();
+		const json = await res.json();
+		const items = json?.stocksIndustries ?? [];
+		const map = new Map<number, string>();
+		for (const item of items) {
+			const id = item.industryID ?? item.industryId;
+			const name = item.industryName ?? item.IndustryName;
+			if (id != null && name) map.set(id, name);
+		}
+		return map;
+	} catch {
+		return new Map();
+	}
 }
 
 // --- Public API ---
@@ -248,4 +284,46 @@ export async function fetchTradeHistory(keys: ApiKeys, days: number = 90): Promi
 			logoUrl: info?.logoUrl
 		};
 	});
+}
+
+export async function fetchCandles(
+	keys: ApiKeys,
+	instrumentId: number,
+	count: number = 90,
+	direction: 'asc' | 'desc' = 'asc',
+	interval: string = 'OneDay'
+): Promise<Candle[]> {
+	try {
+		const res = await fetch(
+			`${BASE_URL}/market-data/instruments/${instrumentId}/history/candles/${direction}/${interval}/${count}`,
+			{ headers: buildHeaders(keys) }
+		);
+		if (!res.ok) return [];
+		const json = await res.json();
+		const nested = json?.candles?.[0]?.candles ?? json?.candles ?? [];
+		return safeParseArray(CandleSchema, nested);
+	} catch {
+		return [];
+	}
+}
+
+export async function fetchAllCandles(
+	keys: ApiKeys,
+	instrumentIds: number[],
+	count: number = 90
+): Promise<Map<number, Candle[]>> {
+	const result = new Map<number, Candle[]>();
+	const CONCURRENCY = 5;
+	const queue = [...instrumentIds];
+
+	async function worker() {
+		while (queue.length > 0) {
+			const id = queue.shift()!;
+			const candles = await fetchCandles(keys, id, count);
+			if (candles.length > 0) result.set(id, candles);
+		}
+	}
+
+	await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () => worker()));
+	return result;
 }

@@ -1,26 +1,36 @@
 import {
 	fetchPortfolio,
 	fetchTradeHistory,
+	fetchAllCandles,
+	fetchInstruments,
+	fetchStocksIndustries,
 	type PortfolioData,
 	type EnrichedTrade,
-	type ApiKeys
+	type ApiKeys,
+	type Candle
 } from './etoro-api';
+import { PUBLIC_ETORO_API_KEY, PUBLIC_ETORO_USER_KEY } from '$env/static/public';
 
 const STORAGE_KEY = 'etoro-api-keys';
 const LAST_LOADED_KEY = 'etoro-last-loaded';
 const PORTFOLIO_KEY = 'etoro-portfolio';
 const TRADES_KEY = 'etoro-trades';
 
+const ENV_FALLBACK_KEYS: ApiKeys | null =
+	PUBLIC_ETORO_API_KEY && PUBLIC_ETORO_USER_KEY
+		? { apiKey: PUBLIC_ETORO_API_KEY, userKey: PUBLIC_ETORO_USER_KEY }
+		: null;
+
 function readKeys(): ApiKeys | null {
-	if (typeof localStorage === 'undefined') return null;
+	if (typeof localStorage === 'undefined') return ENV_FALLBACK_KEYS;
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
-		if (!raw) return null;
+		if (!raw) return ENV_FALLBACK_KEYS;
 		const parsed = JSON.parse(raw);
 		if (parsed?.apiKey && parsed?.userKey) return parsed;
-		return null;
+		return ENV_FALLBACK_KEYS;
 	} catch {
-		return null;
+		return ENV_FALLBACK_KEYS;
 	}
 }
 
@@ -91,6 +101,11 @@ export function createClientApi() {
 	let error = $state<string | null>(null);
 	let lastLoaded = $state<Date | null>(readLastLoaded());
 	let fromCache = $state(cached !== null);
+	let candles = $state<Map<number, Candle[]>>(new Map());
+	let candlesLoading = $state(false);
+	let sectorMap = $state<Map<number, string>>(new Map());
+	let sectorMapLoading = $state(false);
+	let sectorMapLoaded = $state(false);
 
 	const hasKeys = $derived(keys !== null);
 
@@ -137,6 +152,45 @@ export function createClientApi() {
 		}
 	}
 
+	async function loadCandles() {
+		if (!keys || !portfolio || candlesLoading) return;
+		const ids = [...new Set(portfolio.positions.map((p) => p.instrumentId))];
+		if (ids.length === 0) return;
+		candlesLoading = true;
+		try {
+			candles = await fetchAllCandles(keys, ids, 90);
+		} catch {
+			// non-critical — charts just won't render
+		} finally {
+			candlesLoading = false;
+		}
+	}
+
+	async function loadSectorMap() {
+		if (!keys || !portfolio || sectorMapLoading || sectorMapLoaded) return;
+		sectorMapLoading = true;
+		try {
+			const ids = [...new Set(portfolio.positions.map((p) => p.instrumentId))];
+			const [instruments, industries] = await Promise.all([
+				fetchInstruments(keys, ids),
+				fetchStocksIndustries(keys)
+			]);
+			const result = new Map<number, string>();
+			for (const inst of instruments) {
+				if (inst.stocksIndustryId != null) {
+					const name = industries.get(inst.stocksIndustryId);
+					if (name) result.set(inst.instrumentId, name);
+				}
+			}
+			sectorMap = result;
+			sectorMapLoaded = true;
+		} catch {
+			sectorMapLoaded = true;
+		} finally {
+			sectorMapLoading = false;
+		}
+	}
+
 	async function refresh() {
 		if (!keys || refreshing || loading) return;
 		refreshing = true;
@@ -170,9 +224,14 @@ export function createClientApi() {
 		get error() { return error; },
 		get lastLoaded() { return lastLoaded; },
 		get fromCache() { return fromCache; },
+		get candles() { return candles; },
+		get candlesLoading() { return candlesLoading; },
+		get sectorMap() { return sectorMap; },
 		saveKeys,
 		clearKeys,
 		load,
+		loadCandles,
+		loadSectorMap,
 		refresh
 	};
 }

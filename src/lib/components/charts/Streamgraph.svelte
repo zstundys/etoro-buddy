@@ -1,14 +1,25 @@
 <script lang="ts">
 	import * as d3 from 'd3';
 	import type { EnrichedPosition } from '$lib/etoro-api';
-	import { COLORS, categoryColors } from '$lib/chart-utils';
+	import { COLORS, symbolColor } from '$lib/chart-utils';
 	import { currency as fmt, normalizeSymbol } from '$lib/format';
 
-	let { positions }: { positions: EnrichedPosition[] } = $props();
+	let { positions, colorMap = new Map() }: {
+		positions: EnrichedPosition[];
+		colorMap?: Map<string, string>;
+	} = $props();
 
 	let containerEl: HTMLDivElement | undefined = $state();
 	let width = $state(0);
 	let hoveredSymbol = $state<string | null>(null);
+	let selected = $state<Set<string>>(new Set());
+
+	function toggleSymbol(sym: string) {
+		const next = new Set(selected);
+		if (next.has(sym)) next.delete(sym); else next.add(sym);
+		selected = next;
+	}
+
 	let tooltip = $state<{
 		show: boolean;
 		x: number;
@@ -35,7 +46,8 @@
 
 	$effect(() => {
 		if (!containerEl || width <= 0 || positions.length === 0) return;
-		const currentHover = hoveredSymbol; // dependency for re-render on hover
+		const currentHover = hoveredSymbol;
+		const sel = selected;
 
 		const positionsWithDate = positions.filter((p) => p.openDateTime);
 		if (positionsWithDate.length === 0) return;
@@ -53,7 +65,9 @@
 			if (!bySymbol.has(sym)) bySymbol.set(sym, []);
 			bySymbol.get(sym)!.push(p);
 		}
-		const symbols = [...bySymbol.keys()];
+		const allSymbols = [...bySymbol.keys()];
+		const hasSelection = sel.size > 0;
+		const symbols = hasSelection ? allSymbols.filter((s) => sel.has(s)) : allSymbols;
 
 		// Build monthly cumulative data
 		const monthData = months.map((month) => {
@@ -118,7 +132,7 @@
 					.attr('y', y1)
 					.attr('width', barWidth)
 					.attr('height', Math.max(0, h))
-					.attr('fill', categoryColors(key))
+					.attr('fill', symbolColor(key, colorMap))
 					.attr('opacity', () => (currentHover === null ? 1 : currentHover === key ? 1 : 0.3))
 					.style('cursor', 'pointer')
 					.style('transition', 'opacity 0.2s');
@@ -181,7 +195,7 @@
 				const path = chartG
 					.append('path')
 					.datum(series)
-					.attr('fill', categoryColors(key))
+					.attr('fill', symbolColor(key, colorMap))
 					.attr('d', area)
 					.attr('opacity', () => (currentHover === null ? 1 : currentHover === key ? 1 : 0.3))
 					.style('cursor', 'pointer')
@@ -245,22 +259,37 @@
 	{#if positions.length > 0}
 		{@const positionsWithDate = positions.filter((p) => p.openDateTime)}
 		{#if positionsWithDate.length > 0}
-			{@const symbols = [...new Set(positionsWithDate.map((p) => normalizeSymbol(p.symbol ?? `#${p.instrumentId}`)))]}
-			<div class="mt-3 flex flex-wrap gap-x-4 gap-y-2">
-				{#each symbols as symbol (symbol)}
+			{@const legendSymbols = [...new Set(positionsWithDate.map((p) => normalizeSymbol(p.symbol ?? `#${p.instrumentId}`)))]}
+			{@const hasSelection = selected.size > 0}
+			<div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+				{#each legendSymbols as symbol (symbol)}
+					{@const active = !hasSelection || selected.has(symbol)}
 					<button
 						type="button"
-						class="flex items-center gap-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary"
+						class="flex items-center gap-1.5 text-xs transition-colors hover:text-text-primary"
+						class:text-text-primary={active}
+						class:text-text-secondary={!active}
+						class:opacity-40={!active}
+						onclick={() => toggleSymbol(symbol)}
 						onmouseenter={() => (hoveredSymbol = symbol)}
 						onmouseleave={() => (hoveredSymbol = null)}
 					>
 						<span
 							class="h-2.5 w-2.5 shrink-0 rounded-full"
-							style="background-color: {categoryColors(symbol)}"
+							style="background-color: {symbolColor(symbol, colorMap)}"
 						></span>
 						<span>{symbol}</span>
 					</button>
 				{/each}
+				{#if hasSelection}
+					<button
+						type="button"
+						class="text-[10px] text-text-secondary underline decoration-dotted hover:text-text-primary"
+						onclick={() => (selected = new Set())}
+					>
+						clear
+					</button>
+				{/if}
 			</div>
 		{/if}
 	{/if}

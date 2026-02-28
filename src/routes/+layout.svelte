@@ -1,13 +1,14 @@
 <script lang="ts">
 	import '../app.css';
-    import favicon from '$lib/assets/favicon.jpg';
+	import { dev } from '$app/environment';
+	import favicon from '$lib/assets/favicon.jpg';
 
 	let { children } = $props();
 </script>
 
 <svelte:head>
 	<link rel="icon" type="image/jpeg" href={favicon} />
-	<title>eToro Buddy</title>
+	<title>{dev ? '[dev] ' : ''}eToro Buddy</title>
 </svelte:head>
 
 <div class="min-h-screen bg-surface text-text-primary">

@@ -1,23 +1,25 @@
 <script lang="ts">
 	import * as d3 from 'd3';
 	import type { EnrichedPosition } from '$lib/etoro-api';
-	import { COLORS, categoryColors } from '$lib/chart-utils';
+	import { COLORS, symbolColor } from '$lib/chart-utils';
 	import { currency as fmt, normalizeSymbol } from '$lib/format';
 
-	let { positions }: { positions: EnrichedPosition[] } = $props();
+	let { positions, colorMap = new Map() }: {
+		positions: EnrichedPosition[];
+		colorMap?: Map<string, string>;
+	} = $props();
 
 	let containerEl: HTMLDivElement | undefined = $state();
 	let width = $state(0);
 	let hoveredRibbon = $state<{ sourceIdx: number; targetIdx: number } | null>(null);
 	let hoveredArc = $state<number | null>(null);
+	type RibbonTip = { kind: 'ribbon'; month: string; symbol: string; amount: number };
+	type ArcTip = { kind: 'arc'; label: string; isMonth: boolean; total: number; connections: { label: string; amount: number }[] };
+
 	let tooltip = $state<{
-		show: boolean;
-		x: number;
-		y: number;
-		month: string;
-		symbol: string;
-		amount: number;
-	}>({ show: false, x: 0, y: 0, month: '', symbol: '', amount: 0 });
+		show: boolean; x: number; y: number;
+		data: RibbonTip | ArcTip | null;
+	}>({ show: false, x: 0, y: 0, data: null });
 
 	const MAX_SIZE = 500;
 	const INNER_RADIUS_RATIO = 0.8;
@@ -59,7 +61,7 @@
 
 		const minDate = d3.min(positionsWithDate, (p) => new Date(p.openDateTime!))!;
 		const maxDate = d3.max(positionsWithDate, (p) => new Date(p.openDateTime!))!;
-		const months = d3.timeMonth.range(minDate, d3.timeMonth.offset(maxDate, 1));
+		const months = d3.timeMonth.range(d3.timeMonth.floor(minDate), d3.timeMonth.offset(maxDate, 1));
 
 		if (months.length < 2) {
 			d3.select(containerEl).selectAll('*').remove();
@@ -81,7 +83,7 @@
 		symbols.forEach((s, i) => symbolToIdx.set(s, i));
 
 		// matrix[monthIdx][symbolIdx] = capital from month into symbol
-		const monthSymbolMatrix: number[][] = months.map(() => symbols.map(() => 0));
+		const rawMonthSymbolMatrix: number[][] = months.map(() => symbols.map(() => 0));
 		for (const p of positionsWithDate) {
 			const d = new Date(p.openDateTime!);
 			const monthStart = d3.timeMonth.floor(d);
@@ -89,16 +91,28 @@
 			const sym = normalizeSymbol(p.symbol ?? `#${p.instrumentId}`);
 			const symbolIdx = symbolToIdx.get(sym);
 			if (monthIdx != null && symbolIdx != null) {
-				monthSymbolMatrix[monthIdx][symbolIdx] += p.amount;
+				rawMonthSymbolMatrix[monthIdx][symbolIdx] += p.amount;
 			}
 		}
 
-		// Build square matrix for chord: [months..., symbols...], n = months.length + symbols.length
-		const n = months.length + symbols.length;
+		// Filter out months with no capital
+		const activeMonthIndices = months
+			.map((_, i) => i)
+			.filter((i) => rawMonthSymbolMatrix[i].some((v) => v > 0));
+		const activeMonths = activeMonthIndices.map((i) => months[i]);
+		const monthSymbolMatrix = activeMonthIndices.map((i) => rawMonthSymbolMatrix[i]);
+
+		if (activeMonths.length < 2) {
+			d3.select(containerEl).selectAll('*').remove();
+			return;
+		}
+
+		// Build square matrix for chord: [activeMonths..., symbols...], n = activeMonths.length + symbols.length
+		const n = activeMonths.length + symbols.length;
 		const matrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
-		for (let mi = 0; mi < months.length; mi++) {
+		for (let mi = 0; mi < activeMonths.length; mi++) {
 			for (let si = 0; si < symbols.length; si++) {
-				matrix[mi][months.length + si] = monthSymbolMatrix[mi][si];
+				matrix[mi][activeMonths.length + si] = monthSymbolMatrix[mi][si];
 			}
 		}
 
@@ -113,7 +127,7 @@
 
 		const monthColorScale = d3
 			.scaleSequential(d3.interpolateHcl('#4a90d9', '#e8a87c'))
-			.domain([0, Math.max(1, months.length - 1)]);
+			.domain([0, Math.max(1, activeMonths.length - 1)]);
 
 		const arc = d3
 			.arc<d3.ChordGroup>()
@@ -126,12 +140,12 @@
 
 		// Metadata for labels and tooltips
 		const groupLabels: string[] = [
-			...months.map((m) => monthFormat(m)),
+			...activeMonths.map((m) => monthFormat(m)),
 			...symbols
 		];
 		const groupColors: string[] = [
-			...months.map((_, i) => monthColorScale(i)),
-			...symbols.map((s) => categoryColors(s))
+			...activeMonths.map((_, i) => monthColorScale(i)),
+			...symbols.map((s) => symbolColor(s, colorMap))
 		];
 
 		// Chord metadata for tooltips
@@ -142,6 +156,24 @@
 			symbol: groupLabels[c.target.index],
 			amount: c.source.value
 		}));
+
+		// Arc metadata: for each group, compute total and its connections
+		const arcMeta = groups.map((grp) => {
+			const idx = grp.index;
+			const isMonth = idx < activeMonths.length;
+			const connections: { label: string; amount: number }[] = [];
+			for (const cm of chordMeta) {
+				if (cm.sourceIdx === idx) connections.push({ label: cm.symbol, amount: cm.amount });
+				else if (cm.targetIdx === idx) connections.push({ label: cm.month, amount: cm.amount });
+			}
+			connections.sort((a, b) => b.amount - a.amount);
+			return {
+				label: groupLabels[idx],
+				isMonth,
+				total: connections.reduce((s, c) => s + c.amount, 0),
+				connections
+			};
+		});
 
 		const currentHoverRibbon = hoveredRibbon;
 		const currentHoverArc = hoveredArc;
@@ -175,61 +207,89 @@
 			target: { ...c.target, radius: outerRadius }
 		}));
 
+		const labelPad = 50;
+		const viewSize = size + labelPad * 2;
+
 		let svg = d3.select(containerEl).select<SVGSVGElement>('svg');
 		if (svg.empty()) {
-			svg = d3
-				.select(containerEl)
-				.append('svg')
-				.attr('width', size)
-				.attr('height', size)
-				.attr('viewBox', [0, 0, size, size]);
-		} else {
-			svg = svg.attr('width', size).attr('height', size).attr('viewBox', [0, 0, size, size]);
+			svg = d3.select(containerEl).append('svg');
 		}
+		svg.attr('width', viewSize).attr('height', viewSize)
+			.attr('viewBox', `${-labelPad} ${-labelPad} ${viewSize} ${viewSize}`);
+		svg.selectAll('*').remove();
 
-		const g = svg.select<SVGGElement>('g.chart').empty()
-			? svg.append('g').attr('class', 'chart').attr('transform', `translate(${outerRadius},${outerRadius})`)
-			: svg.select<SVGGElement>('g.chart');
+		const g = svg.append('g').attr('transform', `translate(${outerRadius},${outerRadius})`);
+
+		// Ribbons (drawn first so arcs sit on top)
+		type ChordWithRadius = (typeof chordsWithRadius)[0];
+
+		g.selectAll<SVGPathElement, ChordWithRadius>('path.ribbon')
+			.data(chordsWithRadius, (c) => `${c.source.index}-${c.target.index}`)
+			.join('path')
+			.attr('class', 'ribbon')
+			.attr('d', (d) => ribbon(d) ?? '')
+			.attr('fill', (c) => getRibbonColor(c as unknown as d3.Chord))
+			.attr('stroke', COLORS.border)
+			.attr('stroke-width', 0.5)
+			.style('cursor', 'pointer')
+			.style('opacity', (c) => getRibbonOpacity(c as unknown as d3.Chord))
+			.on('mouseenter', function (event: MouseEvent, d: ChordWithRadius) {
+				const meta = chordMeta.find(
+					(m) =>
+						(m.sourceIdx === d.source.index && m.targetIdx === d.target.index) ||
+						(m.sourceIdx === d.target.index && m.targetIdx === d.source.index)
+				);
+				if (meta) {
+					hoveredRibbon = { sourceIdx: d.source.index, targetIdx: d.target.index };
+					tooltip = {
+						show: true, x: event.clientX, y: event.clientY,
+						data: { kind: 'ribbon', month: meta.month, symbol: meta.symbol, amount: meta.amount }
+					};
+				}
+			})
+			.on('mousemove', function (event: MouseEvent) {
+				tooltip = { ...tooltip, x: event.clientX, y: event.clientY };
+			})
+			.on('mouseleave', () => {
+				hoveredRibbon = null;
+				tooltip = { ...tooltip, show: false };
+			});
 
 		// Arcs
-		const arcSel = g.selectAll<SVGPathElement, d3.ChordGroup>('path.arc').data(groups);
-
-		const arcEnter = arcSel
-			.enter()
-			.append('path')
+		g.selectAll<SVGPathElement, d3.ChordGroup>('path.arc')
+			.data(groups)
+			.join('path')
 			.attr('class', 'arc')
-			.attr('fill', (d: d3.ChordGroup, i: number) => groupColors[i])
+			.attr('d', (d) => arc(d) ?? '')
+			.attr('fill', (_d: d3.ChordGroup, i: number) => groupColors[i])
 			.attr('stroke', COLORS.border)
 			.attr('stroke-width', 1)
 			.style('cursor', 'pointer')
-			.attr('d', (d) => arc(d) ?? '')
-			.on('mouseenter', function (_event: MouseEvent, d: d3.ChordGroup) {
+			.on('mouseenter', function (event: MouseEvent, d: d3.ChordGroup) {
 				hoveredArc = d.index;
+				hoveredRibbon = null;
+				const meta = arcMeta[d.index];
+				tooltip = {
+					show: true, x: event.clientX, y: event.clientY,
+					data: { kind: 'arc', ...meta }
+				};
+			})
+			.on('mousemove', function (event: MouseEvent) {
+				tooltip = { ...tooltip, x: event.clientX, y: event.clientY };
 			})
 			.on('mouseleave', () => {
 				hoveredArc = null;
+				tooltip = { ...tooltip, show: false };
 			});
 
-		arcSel
-			.merge(arcEnter)
-			.attr('fill', (d: d3.ChordGroup, i: number) => groupColors[i])
-			.attr('d', (d) => arc(d) ?? '');
+		// Arc labels
+		const labelGroups = groups.filter((grp) => grp.endAngle - grp.startAngle > LABEL_ANGLE_THRESHOLD);
 
-		arcSel.exit().remove();
-
-		// Arc labels (only if arc is large enough)
-		const labelSel = g.selectAll<SVGGElement, d3.ChordGroup>('g.arc-label').data(
-			groups.filter((grp) => grp.endAngle - grp.startAngle > LABEL_ANGLE_THRESHOLD)
-		);
-
-		const labelEnter = labelSel
-			.enter()
-			.append('g')
+		g.selectAll<SVGTextElement, d3.ChordGroup>('text.arc-label')
+			.data(labelGroups)
+			.join('text')
 			.attr('class', 'arc-label')
-			.style('pointer-events', 'none');
-
-		labelEnter
-			.append('text')
+			.style('pointer-events', 'none')
 			.attr('dy', -outerRadius - 6)
 			.attr('text-anchor', (d: d3.ChordGroup) => {
 				const mid = (d.startAngle + d.endAngle) / 2;
@@ -242,67 +302,6 @@
 			.attr('fill', COLORS.textPrimary)
 			.attr('font-size', 10)
 			.text((d: d3.ChordGroup) => groupLabels[d.index]);
-
-		labelSel.exit().remove();
-
-		// Ribbons
-		type ChordWithRadius = (typeof chordsWithRadius)[0];
-		const ribbonSel = g.selectAll<SVGPathElement, ChordWithRadius>('path.ribbon').data(chordsWithRadius, (c) => `${c.source.index}-${c.target.index}`);
-
-		const ribbonEnter = ribbonSel
-			.enter()
-			.append('path')
-			.attr('class', 'ribbon')
-			.attr('fill', (c: ChordWithRadius) => getRibbonColor(c as unknown as d3.Chord))
-			.attr('stroke', COLORS.border)
-			.attr('stroke-width', 0.5)
-			.style('cursor', 'pointer')
-			.style('opacity', (c: ChordWithRadius) => getRibbonOpacity(c as unknown as d3.Chord))
-			.attr('d', (d) => ribbon(d) ?? '')
-			.on('mouseenter', function (event: MouseEvent, d: ChordWithRadius) {
-				const meta = chordMeta.find(
-					(m) =>
-						(m.sourceIdx === d.source.index && m.targetIdx === d.target.index) ||
-						(m.sourceIdx === d.target.index && m.targetIdx === d.source.index)
-				);
-				if (meta) {
-					hoveredRibbon = { sourceIdx: d.source.index, targetIdx: d.target.index };
-					tooltip = {
-						show: true,
-						x: event.clientX,
-						y: event.clientY,
-						month: meta.month,
-						symbol: meta.symbol,
-						amount: meta.amount
-					};
-				}
-			})
-			.on('mousemove', function (event: MouseEvent) {
-				tooltip = { ...tooltip, x: event.clientX, y: event.clientY };
-			})
-			.on('mouseleave', () => {
-				hoveredRibbon = null;
-				tooltip = { ...tooltip, show: false };
-			});
-
-		ribbonSel
-			.merge(ribbonEnter)
-			.attr('fill', (c: ChordWithRadius) => getRibbonColor(c as unknown as d3.Chord))
-			.style('opacity', (c: ChordWithRadius) => getRibbonOpacity(c as unknown as d3.Chord))
-			.attr('d', (d) => ribbon(d) ?? '');
-
-		ribbonSel.exit().remove();
-
-		// Arc mouseenter/mouseleave need to clear ribbon hover
-		g.selectAll<SVGPathElement, d3.ChordGroup>('path.arc')
-			.on('mouseenter', function (_event: MouseEvent, d: d3.ChordGroup) {
-				hoveredArc = d.index;
-				hoveredRibbon = null;
-				tooltip = { ...tooltip, show: false };
-			})
-			.on('mouseleave', () => {
-				hoveredArc = null;
-			});
 	});
 </script>
 
@@ -313,13 +312,31 @@
 			Need at least 2 months of data
 		</div>
 	{/if}
-	{#if tooltip.show}
+	{#if tooltip.show && tooltip.data}
 		<div
 			class="bg-surface-raised border border-border rounded-lg shadow-xl px-3 py-2 text-xs pointer-events-none"
-			style="position: fixed; left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50"
+			style="position: fixed; left: {tooltip.x + 12}px; top: {tooltip.y + 12}px; z-index: 50; max-width: 220px"
 		>
-			<div class="font-semibold text-text-primary">{tooltip.month} → {tooltip.symbol}</div>
-			<div class="mt-1 text-text-secondary">Amount: {fmt.format(tooltip.amount)}</div>
+			{#if tooltip.data.kind === 'ribbon'}
+				<div class="font-semibold text-text-primary">{tooltip.data.month} → {tooltip.data.symbol}</div>
+				<div class="mt-1 text-text-secondary">Amount: {fmt.format(tooltip.data.amount)}</div>
+			{:else}
+				<div class="font-semibold text-text-primary">{tooltip.data.label}</div>
+				<div class="mt-0.5 text-text-secondary">Total: {fmt.format(tooltip.data.total)}</div>
+				{#if tooltip.data.connections.length > 0}
+					<div class="mt-1.5 border-t border-border pt-1.5">
+						{#each tooltip.data.connections.slice(0, 6) as conn (conn.label)}
+							<div class="mt-0.5 flex items-center justify-between gap-3">
+								<span class="text-text-secondary truncate">{tooltip.data.isMonth ? '→' : '←'} {conn.label}</span>
+								<span class="shrink-0 text-text-primary">{fmt.format(conn.amount)}</span>
+							</div>
+						{/each}
+						{#if tooltip.data.connections.length > 6}
+							<div class="mt-0.5 text-text-secondary">+{tooltip.data.connections.length - 6} more</div>
+						{/if}
+					</div>
+				{/if}
+			{/if}
 		</div>
 	{/if}
 </div>

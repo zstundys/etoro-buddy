@@ -8,6 +8,8 @@
 
 	let containerEl: HTMLDivElement | undefined = $state();
 	let width = $state(0);
+	type DayItem = { symbol: string; amount: number; type: 'open' | 'close' };
+
 	let tooltip = $state<{
 		show: boolean;
 		x: number;
@@ -15,13 +17,15 @@
 		date: string;
 		events: number;
 		capital: number;
+		items: DayItem[];
 	}>({
 		show: false,
 		x: 0,
 		y: 0,
 		date: '',
 		events: 0,
-		capital: 0
+		capital: 0,
+		items: []
 	});
 
 	const CELL_SIZE = 14;
@@ -49,17 +53,17 @@
 	$effect(() => {
 		if (!containerEl || width <= 0) return;
 
-		// Build daily aggregates: positions opened + trades closed
-		const byDate = new Map<string, { events: number; capital: number }>();
+		const byDate = new Map<string, { events: number; capital: number; items: DayItem[] }>();
 
 		for (const p of positions) {
 			if (!p.openDateTime) continue;
 			const d = new Date(p.openDateTime);
 			if (isNaN(d.getTime())) continue;
 			const key = d.toISOString().slice(0, 10);
-			const curr = byDate.get(key) ?? { events: 0, capital: 0 };
+			const curr = byDate.get(key) ?? { events: 0, capital: 0, items: [] };
 			curr.events += 1;
 			curr.capital += p.amount ?? 0;
+			curr.items.push({ symbol: p.symbol ?? '?', amount: p.amount ?? 0, type: 'open' });
 			byDate.set(key, curr);
 		}
 
@@ -68,9 +72,10 @@
 			const d = new Date(t.closeTimestamp);
 			if (isNaN(d.getTime())) continue;
 			const key = d.toISOString().slice(0, 10);
-			const curr = byDate.get(key) ?? { events: 0, capital: 0 };
+			const curr = byDate.get(key) ?? { events: 0, capital: 0, items: [] };
 			curr.events += 1;
 			curr.capital += t.investment ?? 0;
+			curr.items.push({ symbol: t.symbol ?? '?', amount: t.investment ?? 0, type: 'close' });
 			byDate.set(key, curr);
 		}
 
@@ -154,13 +159,13 @@
 			.text((d) => d3.timeFormat('%b')(d.month));
 
 		// Cells
-		const cells: { date: Date; key: string; events: number; capital: number; x: number; y: number }[] = [];
+		const cells: { date: Date; key: string; events: number; capital: number; items: DayItem[]; x: number; y: number }[] = [];
 
 		for (let w = 0; w < numWeeks; w++) {
 			for (let d = 0; d < 7; d++) {
 				const date = d3.timeDay.offset(startMonday, w * 7 + d);
 				const key = date.toISOString().slice(0, 10);
-				const agg = byDate.get(key) ?? { events: 0, capital: 0 };
+				const agg = byDate.get(key) ?? { events: 0, capital: 0, items: [] };
 				const x = LABEL_WIDTH + w * CELL_TOTAL + GAP;
 				const y = MONTH_LABEL_HEIGHT + d * CELL_TOTAL + GAP;
 				cells.push({
@@ -168,6 +173,7 @@
 					key,
 					events: agg.events,
 					capital: agg.capital,
+					items: agg.items,
 					x,
 					y
 				});
@@ -194,7 +200,8 @@
 					y: event.clientY,
 					date: shortDate.format(d.date),
 					events: d.events,
-					capital: d.capital
+					capital: d.capital,
+					items: d.items
 				};
 			})
 			.on('mousemove', function (event) {
@@ -213,10 +220,24 @@
 			style="left: {tooltip.x + 10}px; top: {tooltip.y + 10}px"
 		>
 			<div class="font-medium text-text-primary">{tooltip.date}</div>
-			<div class="text-text-secondary">
-				{tooltip.events} {tooltip.events === 1 ? 'event' : 'events'}
-			</div>
-			<div class="text-text-secondary">{fmt.format(tooltip.capital)}</div>
+			{#if tooltip.items.length > 0}
+				<div class="mt-1 flex flex-col gap-0.5 max-h-40 overflow-y-auto">
+					{#each tooltip.items as item}
+						<div class="text-text-secondary flex items-center gap-1.5">
+							<span class="font-medium text-text-primary">{item.symbol}</span>
+							<span>{fmt.format(item.amount)}</span>
+							<span class="opacity-60">{item.type === 'open' ? 'opened' : 'closed'}</span>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<div class="text-text-secondary mt-0.5">No activity</div>
+			{/if}
+			{#if tooltip.items.length > 1}
+				<div class="text-text-secondary mt-1 pt-1 border-t border-border">
+					Total: {fmt.format(tooltip.capital)}
+				</div>
+			{/if}
 		</div>
 	{/if}
 </div>
