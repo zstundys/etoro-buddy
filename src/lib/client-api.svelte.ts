@@ -9,7 +9,7 @@ import {
 	type ApiKeys,
 	type Candle
 } from './etoro-api';
-import { PUBLIC_ETORO_API_KEY, PUBLIC_ETORO_USER_KEY } from '$env/static/public';
+import { env } from '$env/dynamic/public';
 
 const STORAGE_KEY = 'etoro-api-keys';
 const LAST_LOADED_KEY = 'etoro-last-loaded';
@@ -17,8 +17,8 @@ const PORTFOLIO_KEY = 'etoro-portfolio';
 const TRADES_KEY = 'etoro-trades';
 
 const ENV_FALLBACK_KEYS: ApiKeys | null =
-	PUBLIC_ETORO_API_KEY && PUBLIC_ETORO_USER_KEY
-		? { apiKey: PUBLIC_ETORO_API_KEY, userKey: PUBLIC_ETORO_USER_KEY }
+	env.PUBLIC_ETORO_API_KEY && env.PUBLIC_ETORO_USER_KEY
+		? { apiKey: env.PUBLIC_ETORO_API_KEY, userKey: env.PUBLIC_ETORO_USER_KEY }
 		: null;
 
 function readKeys(): ApiKeys | null {
