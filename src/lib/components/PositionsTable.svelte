@@ -11,6 +11,7 @@
   } from "$lib/format";
   import DateRangeFilter from "./DateRangeFilter.svelte";
   import Sparkline from "./charts/Sparkline.svelte";
+  import TickerLink from "./TickerLink.svelte";
 
   let {
     positions,
@@ -622,7 +623,7 @@
                               {sym.slice(0, 2)}
                             </div>
                           {/if}
-                          <span class="font-medium">{sym}</span>
+                          <TickerLink symbol={sym} class="font-medium" />
                         </div>
                       </div>
                       <div class="px-3 py-2">
@@ -772,9 +773,10 @@
                     </div>
                   {/if}
                   <div class="w-max leading-tight overflow-clip">
-                    <span class="text-sm font-semibold mr-2"
-                      >{group.symbol}</span
-                    >
+                    <TickerLink
+                      symbol={group.symbol}
+                      class="text-sm font-semibold mr-2"
+                    />
                     {#if group.displayName}
                       <span
                         class=" text-xs text-text-secondary whitespace-nowrap"

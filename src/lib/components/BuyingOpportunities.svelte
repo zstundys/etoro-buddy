@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { InstrumentSnapshot, Candle, Watchlist } from "$lib/etoro-api";
   import { percent as pctFmt, pnlSign, normalizeSymbol } from "$lib/format";
+  import TickerLink from "./TickerLink.svelte";
 
   let {
     instruments,
@@ -316,9 +317,10 @@
                       </div>
                     {/if}
                     <div class="leading-tight">
-                      <span class="font-medium text-text-primary"
-                        >{row.symbol}</span
-                      >
+                      <TickerLink
+                        symbol={row.symbol}
+                        class="font-medium text-text-primary"
+                      />
                       {#if row.displayName}
                         <span
                           class="ml-1.5 hidden text-text-secondary sm:inline"

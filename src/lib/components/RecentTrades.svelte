@@ -9,6 +9,7 @@
     normalizeSymbol,
   } from "$lib/format";
   import DateRangeFilter from "./DateRangeFilter.svelte";
+  import TickerLink from "./TickerLink.svelte";
 
   let {
     trades,
@@ -231,7 +232,7 @@
                         {row.symbol.slice(0, 2)}
                       </div>
                     {/if}
-                    <span class="font-medium">{row.symbol}</span>
+                    <TickerLink symbol={row.symbol} class="font-medium" />
                   </div>
                 </td>
                 <td class="px-3 py-2.5">
