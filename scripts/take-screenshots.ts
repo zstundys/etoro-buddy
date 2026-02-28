@@ -206,24 +206,29 @@ async function main() {
     console.log("  ✓ portfolio-summary.png");
   }
 
-  // Positions table (scroll to heading, viewport shot)
-  const positionsSection = page
+  // Positions table (scroll heading to top, viewport shot)
+  const positionsH2 = page
     .locator("section")
     .filter({ has: page.locator("h2", { hasText: "Positions" }) })
+    .locator("h2")
     .first();
-  if (await positionsSection.isVisible()) {
-    await positionsSection.locator("h2").first().scrollIntoViewIfNeeded();
+  if (await positionsH2.isVisible()) {
+    await positionsH2.evaluate((el) =>
+      el.scrollIntoView({ block: "start" }),
+    );
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(OUT, "positions-table.png") });
     console.log("  ✓ positions-table.png");
   }
 
-  // Buying Opportunities table (scroll to heading, viewport shot)
+  // Buying Opportunities table (scroll heading to top, viewport shot)
   const buyingOpportunitiesH2 = page
     .locator("h2", { hasText: "Buying Opportunities" })
     .first();
   if (await buyingOpportunitiesH2.isVisible()) {
-    await buyingOpportunitiesH2.scrollIntoViewIfNeeded();
+    await buyingOpportunitiesH2.evaluate((el) =>
+      el.scrollIntoView({ block: "start" }),
+    );
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(OUT, "buying-opportunities.png") });
     console.log("  ✓ buying-opportunities.png");
