@@ -2,6 +2,8 @@
 
 A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your open positions, trade history, and performance metrics. Built with SvelteKit, D3, and Tailwind CSS.
 
+![Dashboard overview](screenshots/dashboard.png)
+
 > [!NOTE]
 > **Your data stays with you.** All API calls are made directly from your browser to the [eToro API](https://api-portal.etoro.com/) — no intermediary server collects or stores your data. API keys are saved in your browser's `localStorage` and never transmitted anywhere else. This app is a fully static site with no backend, analytics, or tracking.
 
@@ -13,19 +15,67 @@ A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your op
 ## Features
 
 - **Portfolio overview** — total invested, P&L, and per-position breakdowns
+
+  ![Portfolio summary cards](screenshots/portfolio-summary.png)
+
 - **Positions table** — sortable, grouped by symbol or date with expandable detail rows
+
+  ![Positions table](screenshots/positions-table.png)
+
 - **Date range filtering** — narrow the view to any time window
 - **Recent trades** — latest trade history with buy/sell indicators
 - **D3 visualizations:**
+  - Portfolio Value Over Time (stacked area)
+
+    ![Portfolio value stacked area chart](screenshots/chart-portfolio-value.png)
+
   - Portfolio Allocation (treemap)
+
+    ![Portfolio allocation treemap](screenshots/chart-allocation.png)
+
   - Timing vs Performance (bubble scatter)
+
+    ![Timing vs performance bubble scatter](screenshots/chart-bubble-scatter.png)
+
   - Capital Over Time (streamgraph)
+
+    ![Capital over time streamgraph](screenshots/chart-streamgraph.png)
+
   - Sector Breakdown (sunburst)
+
+    ![Sector breakdown sunburst](screenshots/chart-sunburst.png)
+
   - P&L Distribution (beeswarm)
+
+    ![P&L distribution beeswarm](screenshots/chart-beeswarm.png)
+
+  - Performance Race (normalized line)
+
+    ![Performance race normalized line chart](screenshots/chart-performance-race.png)
+
   - Trade Activity (calendar heatmap)
+
+    ![Trade activity calendar heatmap](screenshots/chart-calendar.png)
+
+  - Price Horizon
+
+    ![Price horizon chart](screenshots/chart-horizon.png)
+
+  - Volume Ribbons
+
+    ![Volume ribbons chart](screenshots/chart-volume-ribbons.png)
+
   - Position Lifespans (timeline)
+
+    ![Position lifespans timeline](screenshots/chart-timeline.png)
+
   - Fees & Dividends (waterfall)
+
+    ![Fees and dividends waterfall](screenshots/chart-fees-waterfall.png)
+
   - Monthly Capital Flow (chord diagram)
+
+    ![Monthly capital flow chord diagram](screenshots/chart-chord.png)
 
 ## Getting your API keys
 
@@ -64,6 +114,17 @@ bun dev
 ```
 
 The server loads data on page render. You can still override with client-side keys in the UI.
+
+## Screenshots
+
+Regenerate the README screenshots with Playwright. Requires a running dev server with API keys configured in `.env`:
+
+```sh
+bun dev &
+bun run screenshots
+```
+
+Dollar amounts are automatically obfuscated with randomized values before capture. Output goes to `screenshots/`.
 
 ## Building
 
