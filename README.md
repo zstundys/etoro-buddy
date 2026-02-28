@@ -2,13 +2,13 @@
 
 A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your open positions, trade history, and performance metrics. Built with SvelteKit, D3, and Tailwind CSS.
 
+> [!NOTE]
+> **Your data stays with you.** All API calls are made directly from your browser to the eToro API — no intermediary server collects or stores your data. API keys are saved in your browser's `localStorage` and never transmitted anywhere else. This app is a fully static site with no backend, analytics, or tracking.
+
 **Live demo:** [zstundys.github.io/etoro-buddy](https://zstundys.github.io/etoro-buddy/)
 
 > [!IMPORTANT]
 > This project is an independent, unofficial tool and is **not affiliated with, endorsed by, or associated with eToro** in any way. "eToro" is a registered trademark of eToro Group Ltd. All product names, logos, and brands mentioned are the property of their respective owners and are used here solely for identification purposes.
-
-> [!NOTE]
-> **Your data stays with you.** All API calls are made directly from your browser to the eToro API — no intermediary server collects or stores your data. API keys are saved in your browser's `localStorage` and never transmitted anywhere else. This app is a fully static site with no backend, analytics, or tracking.
 
 ## Features
 
