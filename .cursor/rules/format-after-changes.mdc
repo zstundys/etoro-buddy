@@ -1,0 +1,15 @@
+---
+description: Run prettier formatting after making code changes in src/
+globs: src/**/*.{svelte,ts,js,css,html}
+alwaysApply: false
+---
+
+# Format After Changes
+
+After finishing edits to files in `src/`, run:
+
+```bash
+bun run format
+```
+
+This formats all `src/**/*.{svelte,ts,js,css,html}` files with Prettier and the Svelte plugin. Run it once at the end of a set of changes, not after every individual file edit.
