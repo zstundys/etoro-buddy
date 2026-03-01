@@ -7,7 +7,7 @@
   "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#0f1117",
-  "background_color": "#0f1117",
+  "background_color": "#ffffff",
   "icons": [
     {
       "src": "favicon-bull.svg",
