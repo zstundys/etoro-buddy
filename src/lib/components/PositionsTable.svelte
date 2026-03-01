@@ -465,7 +465,7 @@
     {:else if isByDate}
       <div class="overflow-x-auto">
         <div
-          class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2"
+          class="min-w-max w-full grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2"
         >
           <div
             class="col-span-full grid grid-cols-subgrid h-0 min-h-0 overflow-hidden"
@@ -709,7 +709,7 @@
     {:else}
       <div class="overflow-x-auto">
         <div
-          class="min-w-fit grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2"
+          class="min-w-max w-full grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto_auto_auto] gap-y-2"
         >
           <div
             class="col-span-full grid grid-cols-subgrid h-0 min-h-0 overflow-hidden"
@@ -802,9 +802,11 @@
                 </div>
                 {#if groupSparkline.length >= 2}
                   <div
-                    class="relative hidden items-center px-2 sm:flex col-span-3 justify-center"
+                    class="relative flex items-center px-2 col-span-3 justify-center"
                   >
-                    <Sparkline data={groupSparkline} width={120} height={28} />
+                    <div class="hidden sm:block">
+                      <Sparkline data={groupSparkline} width={120} height={28} />
+                    </div>
                   </div>
                 {:else}
                   <div class="col-span-3"></div>
