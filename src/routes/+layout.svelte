@@ -1,7 +1,7 @@
 <script lang="ts">
   import "../app.css";
   import { dev } from "$app/environment";
-  import favicon from "$lib/assets/favicon.jpg";
+  import { base } from "$app/paths";
   import { onMount } from "svelte";
   import { initPrivacy, togglePrivacy } from "$lib/privacy-mode";
 
@@ -19,7 +19,9 @@
 </script>
 
 <svelte:head>
-  <link rel="icon" type="image/jpeg" href={favicon} />
+  <link rel="icon" type="image/svg+xml" href={`${base}/favicon-bull.svg`} />
+  <link rel="manifest" href={`${base}/site.webmanifest`} />
+  <meta name="theme-color" content="#0f1117" />
   <title>{dev ? "[dev] " : ""}eToro Buddy</title>
 </svelte:head>
 

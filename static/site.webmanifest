@@ -1,0 +1,19 @@
+{
+  "name": "eToro Buddy",
+  "short_name": "eToro Buddy",
+  "description": "eToro portfolio management",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0f1117",
+  "background_color": "#0f1117",
+  "icons": [
+    {
+      "src": "favicon-bull.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

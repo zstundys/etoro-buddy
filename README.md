@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="static/favicon-bull.svg" alt="eToro Buddy" width="128" height="128" />
+</p>
+
 # eToro Buddy
 
 A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your open positions, trade history, and performance metrics. Built with SvelteKit, D3, and Tailwind CSS.
