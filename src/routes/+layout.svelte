@@ -27,7 +27,7 @@
   <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <header class="mb-8">
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 leading-none">
           <div
             class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/15"
           >
@@ -51,8 +51,17 @@
             </svg>
           </div>
           <div>
-            <h1 class="text-2xl font-semibold tracking-tight">Portfolio</h1>
-            <p class="text-sm text-text-secondary">eToro open positions</p>
+            <h1 class="text-2xl -mb-1 font-semibold tracking-tight">
+              Portfolio
+            </h1>
+            <a
+              href="https://www.etoro.com/home"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-sm text-text-secondary transition-colors hover:text-text-primary"
+            >
+              Open eToro
+            </a>
           </div>
         </div>
         <div class="flex items-center gap-2">
