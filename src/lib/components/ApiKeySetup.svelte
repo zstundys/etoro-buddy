@@ -63,7 +63,7 @@
 
 {#if hasKeys && !showForm}
   <div
-    class="flex items-baseline gap-2 {compact
+    class="flex min-w-0 flex-wrap items-baseline gap-2 gap-y-2 {compact
       ? ''
       : 'rounded-xl border border-border bg-surface-raised px-5 py-4'}"
   >
@@ -89,7 +89,7 @@
         {formatLastLoaded(lastLoaded)}</span
       >
     {/if}
-    <div class="ml-auto flex items-center gap-2">
+    <div class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
       <button
         onclick={onrefresh}
         disabled={refreshing}
@@ -135,12 +135,12 @@
   </div>
 {:else}
   <div
-    class={compact
-      ? ""
-      : "rounded-xl border border-border bg-surface-raised p-6"}
+    class="min-w-0 {compact
+      ? ''
+      : 'rounded-xl border border-border bg-surface-raised p-6'}"
   >
     {#if !compact}
-      <div class="mb-4 flex items-start gap-3">
+      <div class="mb-4 flex min-w-0 flex-wrap items-start gap-3">
         <div
           class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand/15"
         >
@@ -158,9 +158,9 @@
             />
           </svg>
         </div>
-        <div>
+        <div class="min-w-0 flex-1">
           <h3 class="text-sm font-semibold">Connect your eToro account</h3>
-          <p class="mt-1 text-xs text-text-secondary">
+          <p class="mt-1 wrap-break-word text-xs text-text-secondary">
             Enter your API keys from eToro:
             <a
               href="https://www.etoro.com/settings/api"
@@ -176,7 +176,7 @@
 
     {#if !compact}
       <div
-        class="mb-4 flex items-start gap-2 rounded-lg border border-brand/20 bg-brand/5 px-3 py-2.5"
+        class="mb-4 flex min-w-0 items-start gap-2 rounded-lg border border-brand/20 bg-brand/5 px-3 py-2.5"
       >
         <svg
           class="mt-0.5 h-4 w-4 shrink-0 text-brand"
@@ -192,7 +192,9 @@
             stroke-linejoin="round"
           />
         </svg>
-        <p class="text-xs leading-relaxed text-text-secondary">
+        <p
+          class="min-w-0 flex-1 wrap-break-word text-xs leading-relaxed text-text-secondary"
+        >
           <strong class="text-text-primary">Your data stays with you.</strong>
           All API calls are made directly from your browser to the
           <a
@@ -258,7 +260,7 @@
         </div>
       {/if}
 
-      <div class="flex items-center gap-2 pt-1">
+      <div class="flex flex-wrap items-center gap-2 pt-1">
         <button
           type="submit"
           disabled={loading || !apiKey.trim() || !userKey.trim()}

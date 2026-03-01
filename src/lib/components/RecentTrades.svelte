@@ -199,7 +199,9 @@
           <tbody class="divide-y divide-border/30">
             {#each rows as row, i (row.id || i)}
               <tr class="transition-colors hover:bg-surface-overlay/20">
-                <td class="py-2.5 pl-5 pr-3 text-xs text-text-secondary">
+                <td
+                  class="py-2.5 pl-5 pr-3 text-xs text-text-secondary text-nowrap"
+                >
                   {dateFmt.format(new Date(row.date))}
                 </td>
                 <td class="px-3 py-2.5">
@@ -268,15 +270,17 @@
                       value={row.fees}
                       abs
                       signOverride={row.fees < 0 ? "+" : ""}
-                      class={row.fees < 0 ? "text-gain" : row.fees > 0 ? "text-loss" : ""}
+                      class={row.fees < 0
+                        ? "text-gain"
+                        : row.fees > 0
+                          ? "text-loss"
+                          : ""}
                     />
                   {:else}
                     <span class="text-text-secondary">—</span>
                   {/if}
                 </td>
-                <td
-                  class="px-3 py-2.5 text-right tabular-nums font-medium"
-                >
+                <td class="px-3 py-2.5 text-right tabular-nums font-medium">
                   {#if row.pnl !== undefined}
                     <Money value={row.pnl} showSign />
                   {:else}

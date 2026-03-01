@@ -378,9 +378,7 @@
               <span class="font-medium">—</span>
             {/if}
           </span>
-          <span
-            >Invested <Money value={fInvested} class="font-medium" /></span
-          >
+          <span>Invested <Money value={fInvested} class="font-medium" /></span>
           <span
             >P&L
             <Money value={fPnl} showSign class="font-medium" />
@@ -420,7 +418,7 @@
           asset{grouped.length !== 1 ? "s" : ""}
         {/if}
       </p>
-      <div class="ml-auto flex items-center gap-2">
+      <div class="ml-auto flex items-center gap-2 flex-wrap">
         <div class="flex items-center gap-1">
           {#each sortOptions as opt (opt.field)}
             <button
@@ -667,7 +665,11 @@
                             value={pos.totalFees}
                             abs
                             signOverride={pos.totalFees < 0 ? "+" : ""}
-                            class={pos.totalFees < 0 ? "text-gain" : pos.totalFees > 0 ? "text-loss" : ""}
+                            class={pos.totalFees < 0
+                              ? "text-gain"
+                              : pos.totalFees > 0
+                                ? "text-loss"
+                                : ""}
                           />
                         {:else}
                           <span class="text-text-secondary">—</span>
@@ -771,23 +773,28 @@
                       {group.symbol.slice(0, 2)}
                     </div>
                   {/if}
-                  <div class="w-max leading-tight overflow-clip">
+                  <div
+                    class="w-max leading-tight overflow-clip flex gap-x-1 items-baseline flex-wrap min-w-[8ch]"
+                  >
                     <TickerLink
                       symbol={group.symbol}
-                      class="text-sm font-semibold mr-2"
+                      class="text-sm font-semibold"
                     />
-                    {#if group.displayName}
+
+                    <div class="flex items-baseline gap-x-1 min-w-0">
+                      {#if group.displayName}
+                        <span
+                          class=" text-xs text-text-secondary whitespace-nowrap text-ellipsis overflow-hidden"
+                          >{group.displayName}</span
+                        >
+                      {/if}
                       <span
-                        class=" text-xs text-text-secondary whitespace-nowrap"
-                        >{group.displayName}</span
+                        class="rounded-full bg-surface-overlay px-2 py-0.5 text-xs text-text-secondary"
                       >
-                    {/if}
+                        {group.positionCount}
+                      </span>
+                    </div>
                   </div>
-                  <span
-                    class="rounded-full bg-surface-overlay px-2 py-0.5 text-xs text-text-secondary"
-                  >
-                    {group.positionCount}
-                  </span>
                 </div>
                 <div class="whitespace-nowrap px-4 text-right text-sm">
                   <p class="text-xs text-text-secondary">Invested</p>
@@ -897,7 +904,9 @@
                               value={month.totalFees}
                               abs
                               signOverride={month.totalFees < 0 ? "+" : ""}
-                              class={month.totalFees < 0 ? "text-gain" : "text-loss"}
+                              class={month.totalFees < 0
+                                ? "text-gain"
+                                : "text-loss"}
                             />
                           {:else}
                             <span class="text-text-secondary">—</span>
@@ -984,7 +993,11 @@
                                     value={pos.totalFees}
                                     abs
                                     signOverride={pos.totalFees < 0 ? "+" : ""}
-                                    class={pos.totalFees < 0 ? "text-gain" : pos.totalFees > 0 ? "text-loss" : ""}
+                                    class={pos.totalFees < 0
+                                      ? "text-gain"
+                                      : pos.totalFees > 0
+                                        ? "text-loss"
+                                        : ""}
                                   />
                                 {:else}
                                   <span class="text-text-secondary">—</span>

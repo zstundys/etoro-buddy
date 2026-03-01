@@ -124,7 +124,7 @@
     <p class="text-sm text-text-secondary">Loading portfolio...</p>
   </div>
 {:else if hasData && portfolio}
-  <div class="grid gap-y-10">
+  <div class="grid gap-y-10 *:min-w-0">
     <PortfolioSummary {portfolio} />
     <BuyingOpportunities
       instruments={opportunityInstruments}
@@ -136,12 +136,12 @@
     />
     <RecentTrades {trades} positions={portfolio.positions} />
     <PositionsTable positions={portfolio.positions} {candleMap} />
-    <ChartsDashboard
+    <!-- <ChartsDashboard
       positions={portfolio.positions}
       {trades}
       {candleMap}
       credit={portfolio.credit}
       {sectorMap}
-    />
+    /> -->
   </div>
 {/if}

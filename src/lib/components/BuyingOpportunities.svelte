@@ -316,14 +316,14 @@
                         {row.symbol.slice(0, 2)}
                       </div>
                     {/if}
-                    <div class="leading-tight">
+                    <div class="leading-tight flex flex-wrap gap-x-1 min-w-0">
                       <TickerLink
                         symbol={row.symbol}
                         class="font-medium text-text-primary"
                       />
                       {#if row.displayName}
                         <span
-                          class="ml-1.5 hidden text-text-secondary sm:inline"
+                          class="hidden text-text-secondary sm:block text-ellipsis overflow-hidden text-nowrap"
                           >{row.displayName}</span
                         >
                       {/if}
