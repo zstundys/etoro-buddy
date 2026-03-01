@@ -19,6 +19,9 @@
     </radialGradient>
   </defs>
 
+  <!-- White background for homescreen icon -->
+  <rect width="136" height="136" fill="#ffffff" />
+
   <g id="chibi-bull" transform="translate(8, 11.5)">
     <!-- Horns (Behind head) -->
     <path d="M 40 22 Q 32 5 44 4 Q 48 10 50 16 Z" fill="url(#hornGrad)" />
