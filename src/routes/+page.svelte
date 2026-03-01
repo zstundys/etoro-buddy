@@ -136,12 +136,12 @@
     />
     <RecentTrades {trades} positions={portfolio.positions} />
     <PositionsTable positions={portfolio.positions} {candleMap} />
-    <!-- <ChartsDashboard
+    <ChartsDashboard
       positions={portfolio.positions}
       {trades}
       {candleMap}
       credit={portfolio.credit}
       {sectorMap}
-    /> -->
+    />
   </div>
 {/if}
