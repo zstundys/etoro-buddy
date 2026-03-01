@@ -1,28 +1,16 @@
 const BLUR = "6px";
 const STORAGE_KEY = "privacy-mode";
-const SPAN_CLASS = "privacy-blur";
-const ATTR_MARK = "data-privacy-blur";
 const STYLE_ID = "privacy-mode-css";
 
 let active = false;
-let observer: MutationObserver | null = null;
-let applying = false;
+let svgObserver: MutationObserver | null = null;
 
-const re = /[+-]?\s*\$[\d,]+(?:\.\d{0,2})?|[+-]?\d+(?:\.\d+)?%/g;
-const quick = /\$\d|\d%/;
-
-// CSS rules that kick in the instant an element is painted — no JS round-trip.
-// Covers summary cards, table cells, SVG axes, and stat cards.
 function injectStyleSheet() {
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-    html.privacy .tabular-nums,
-    html.privacy p.text-2xl.font-semibold,
-    html.privacy .grid > .rounded-xl.border-border > p.text-lg,
-    html.privacy svg text,
-    html.privacy svg tspan {
+    html.privacy [data-private] {
       filter: blur(${BLUR}) !important;
       user-select: none !important;
     }
@@ -30,41 +18,9 @@ function injectStyleSheet() {
   document.head.appendChild(style);
 }
 
-function blurSubtree(root: Node) {
-  const textNodes: Text[] = [];
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  while (walker.nextNode()) {
-    const n = walker.currentNode as Text;
-    if (n.parentElement?.classList.contains(SPAN_CLASS)) continue;
-    textNodes.push(n);
-  }
+const dollarRe = /\$/;
 
-  for (const node of textNodes) {
-    const text = node.textContent;
-    if (!text || !quick.test(text)) continue;
-
-    const frag = document.createDocumentFragment();
-    let last = 0;
-    let m: RegExpExecArray | null;
-
-    re.lastIndex = 0;
-    while ((m = re.exec(text)) !== null) {
-      if (m.index > last)
-        frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-      const span = document.createElement("span");
-      span.className = SPAN_CLASS;
-      span.style.filter = `blur(${BLUR})`;
-      span.appendChild(document.createTextNode(m[0]));
-      frag.appendChild(span);
-      last = m.index + m[0].length;
-    }
-
-    if (last < text.length)
-      frag.appendChild(document.createTextNode(text.slice(last)));
-
-    node.parentNode?.replaceChild(frag, node);
-  }
-
+function tagSvgDollarNodes(root: Node) {
   const el =
     root instanceof Element
       ? root
@@ -73,79 +29,44 @@ function blurSubtree(root: Node) {
         : null;
   if (!el) return;
 
-  el.querySelectorAll<SVGElement>("svg text, svg tspan").forEach((svg) => {
+  el.querySelectorAll<SVGElement>("svg text, svg tspan").forEach((node) => {
     if (
-      svg.textContent &&
-      quick.test(svg.textContent) &&
-      !svg.hasAttribute(ATTR_MARK)
+      node.textContent &&
+      dollarRe.test(node.textContent) &&
+      !node.hasAttribute("data-private")
     ) {
-      svg.setAttribute(ATTR_MARK, "");
-      svg.style.filter = `blur(${BLUR})`;
-    }
-  });
-
-  el.querySelectorAll<HTMLElement>(
-    ".grid > .rounded-xl.border.border-border > p.text-lg",
-  ).forEach((p) => {
-    if (!p.hasAttribute(ATTR_MARK)) {
-      p.setAttribute(ATTR_MARK, "");
-      p.style.filter = `blur(${BLUR})`;
+      node.setAttribute("data-private", "");
     }
   });
 }
 
-function applyBlur() {
-  applying = true;
-  document.documentElement.classList.add("privacy");
-  injectStyleSheet();
-  blurSubtree(document.body);
-  applying = false;
-}
-
-function removeBlur() {
-  applying = true;
-  document.documentElement.classList.remove("privacy");
-
-  document.querySelectorAll(`.${SPAN_CLASS}`).forEach((span) => {
-    const parent = span.parentNode;
-    if (!parent) return;
-    while (span.firstChild) parent.insertBefore(span.firstChild, span);
-    parent.removeChild(span);
-    parent.normalize();
-  });
-
-  document.querySelectorAll<HTMLElement>(`[${ATTR_MARK}]`).forEach((el) => {
-    el.removeAttribute(ATTR_MARK);
-    el.style.filter = "";
-  });
-
-  applying = false;
-}
-
-function startObserver() {
-  if (observer) return;
-  observer = new MutationObserver((mutations) => {
-    if (!active || applying) return;
-    applying = true;
+function startSvgObserver() {
+  if (svgObserver) return;
+  tagSvgDollarNodes(document.body);
+  svgObserver = new MutationObserver((mutations) => {
     for (const mut of mutations) {
       if (mut.type === "childList") {
-        for (const node of mut.addedNodes) blurSubtree(node);
-      } else if (mut.type === "characterData" && mut.target.parentNode) {
-        blurSubtree(mut.target.parentNode);
+        for (const node of mut.addedNodes) tagSvgDollarNodes(node);
       }
     }
-    applying = false;
   });
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  });
+  svgObserver.observe(document.body, { childList: true, subtree: true });
 }
 
-function stopObserver() {
-  observer?.disconnect();
-  observer = null;
+function stopSvgObserver() {
+  svgObserver?.disconnect();
+  svgObserver = null;
+}
+
+function enable() {
+  document.documentElement.classList.add("privacy");
+  injectStyleSheet();
+  startSvgObserver();
+}
+
+function disable() {
+  document.documentElement.classList.remove("privacy");
+  stopSvgObserver();
 }
 
 export function isPrivacyActive(): boolean {
@@ -155,11 +76,9 @@ export function isPrivacyActive(): boolean {
 export function togglePrivacy(): boolean {
   active = !active;
   if (active) {
-    applyBlur();
-    startObserver();
+    enable();
   } else {
-    stopObserver();
-    removeBlur();
+    disable();
   }
   try {
     localStorage.setItem(STORAGE_KEY, active ? "1" : "0");
@@ -174,8 +93,7 @@ export function initPrivacy(): boolean {
     active = false;
   }
   if (active) {
-    applyBlur();
-    startObserver();
+    enable();
   }
   return active;
 }

@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { EnrichedTrade, EnrichedPosition } from "$lib/etoro-api";
   import {
-    currency as fmt,
     percent as pctFmt,
     shortDate as dateFmt,
     pnlColor,
@@ -9,6 +8,7 @@
     normalizeSymbol,
   } from "$lib/format";
   import DateRangeFilter from "./DateRangeFilter.svelte";
+  import Money from "./Money.svelte";
   import TickerLink from "./TickerLink.svelte";
 
   let {
@@ -156,8 +156,8 @@
       </div>
       <div class="rounded-xl border border-border bg-surface-raised px-4 py-3">
         <p class="text-xs text-text-secondary">Realized P&L</p>
-        <p class="text-lg font-semibold {pnlColor(closedProfit)}">
-          {pnlSign(closedProfit)}{fmt.format(closedProfit)}
+        <p class="text-lg font-semibold">
+          <Money value={closedProfit} showSign />
         </p>
       </div>
       <div class="rounded-xl border border-border bg-surface-raised px-4 py-3">
@@ -245,42 +245,43 @@
                   </span>
                 </td>
                 <td class="px-3 py-2.5 text-right tabular-nums"
-                  >{fmt.format(row.invested)}</td
+                  ><Money value={row.invested} /></td
                 >
                 <td
                   class="px-3 py-2.5 text-right tabular-nums text-text-secondary"
-                  >{fmt.format(row.openRate)}</td
+                  ><Money value={row.openRate} public /></td
                 >
                 <td
                   class="px-3 py-2.5 text-right tabular-nums text-text-secondary"
                 >
                   {#if row.status === "closed" && row.closeRate !== undefined}
-                    {fmt.format(row.closeRate)}
+                    <Money value={row.closeRate} public />
                   {:else if row.currentRate !== undefined}
-                    {fmt.format(row.currentRate)}
+                    <Money value={row.currentRate} public />
                   {:else}
                     —
                   {/if}
                 </td>
-                <td
-                  class="px-3 py-2.5 text-right tabular-nums {row.fees < 0
-                    ? 'text-gain'
-                    : row.fees > 0
-                      ? 'text-loss'
-                      : 'text-text-secondary'}"
-                >
-                  {row.fees !== 0
-                    ? `${row.fees < 0 ? "+" : ""}${fmt.format(Math.abs(row.fees))}`
-                    : "—"}
+                <td class="px-3 py-2.5 text-right tabular-nums">
+                  {#if row.fees !== 0}
+                    <Money
+                      value={row.fees}
+                      abs
+                      signOverride={row.fees < 0 ? "+" : ""}
+                      class={row.fees < 0 ? "text-gain" : row.fees > 0 ? "text-loss" : ""}
+                    />
+                  {:else}
+                    <span class="text-text-secondary">—</span>
+                  {/if}
                 </td>
                 <td
-                  class="px-3 py-2.5 text-right tabular-nums font-medium {pnlColor(
-                    row.pnl,
-                  )}"
+                  class="px-3 py-2.5 text-right tabular-nums font-medium"
                 >
-                  {row.pnl !== undefined
-                    ? `${pnlSign(row.pnl)}${fmt.format(row.pnl)}`
-                    : "—"}
+                  {#if row.pnl !== undefined}
+                    <Money value={row.pnl} showSign />
+                  {:else}
+                    <span class={pnlColor(row.pnl)}>—</span>
+                  {/if}
                 </td>
                 <td
                   class="py-2.5 pl-3 pr-5 text-right tabular-nums {pnlColor(

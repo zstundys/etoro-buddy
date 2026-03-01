@@ -3,6 +3,7 @@
   import type { EnrichedPosition } from "$lib/etoro-api";
   import { COLORS } from "$lib/chart-utils";
   import { currency as fmt, normalizeSymbol } from "$lib/format";
+  import Money from "../Money.svelte";
 
   let { positions }: { positions: EnrichedPosition[] } = $props();
 
@@ -274,10 +275,13 @@
     >
       <div class="font-semibold text-text-primary">{tooltip.symbol}</div>
       <div class="mt-1 {tooltip.amount > 0 ? 'text-gain' : 'text-loss'}">
-        {tooltip.amount > 0 ? "Dividend" : "Fee"}: {fmt.format(tooltip.amount)}
+        {tooltip.amount > 0 ? "Dividend" : "Fee"}: <Money
+          value={tooltip.amount}
+          showSign
+        />
       </div>
       <div class="mt-0.5 text-text-secondary">
-        Running total: {fmt.format(tooltip.runningTotal)}
+        Running total: <Money value={tooltip.runningTotal} showSign />
       </div>
     </div>
   {/if}

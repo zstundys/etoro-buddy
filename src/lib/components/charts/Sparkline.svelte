@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as d3 from "d3";
   import { COLORS } from "$lib/chart-utils";
-  import { currency as fmt } from "$lib/format";
+  import Money from "../Money.svelte";
 
   type DataPoint = { date: string; value: number };
 
@@ -71,7 +71,7 @@
       cx: scales.xScale(hoverIndex),
       cy: scales.yScale(d.value),
       date: d3.timeFormat("%b %d")(new Date(d.date)),
-      price: fmt.format(d.value),
+      value: d.value,
       pct,
     };
   });
@@ -115,7 +115,9 @@
       style="left: {mouseX + 10}px; top: {mouseY - 32}px; z-index: 9999"
     >
       <span class="text-text-secondary">{hoverPoint.date}</span>
-      <span class="ml-1 font-medium text-text-primary">{hoverPoint.price}</span>
+      <span class="ml-1 font-medium text-text-primary"
+        ><Money value={hoverPoint.value} public /></span
+      >
       <span class="ml-1 {hoverPoint.pct >= 0 ? 'text-gain' : 'text-loss'}"
         >{hoverPoint.pct >= 0 ? "+" : ""}{hoverPoint.pct.toFixed(1)}%</span
       >

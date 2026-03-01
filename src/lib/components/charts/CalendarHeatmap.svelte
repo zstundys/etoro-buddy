@@ -2,7 +2,8 @@
   import * as d3 from "d3";
   import type { EnrichedPosition, EnrichedTrade } from "$lib/etoro-api";
   import { COLORS } from "$lib/chart-utils";
-  import { currency as fmt, shortDate } from "$lib/format";
+  import { shortDate } from "$lib/format";
+  import Money from "../Money.svelte";
 
   let {
     positions,
@@ -264,7 +265,7 @@
           {#each tooltip.items as item}
             <div class="text-text-secondary flex items-center gap-1.5">
               <span class="font-medium text-text-primary">{item.symbol}</span>
-              <span>{fmt.format(item.amount)}</span>
+              <span><Money value={item.amount} /></span>
               <span class="opacity-60"
                 >{item.type === "open" ? "opened" : "closed"}</span
               >
@@ -276,7 +277,7 @@
       {/if}
       {#if tooltip.items.length > 1}
         <div class="text-text-secondary mt-1 pt-1 border-t border-border">
-          Total: {fmt.format(tooltip.capital)}
+          Total: <Money value={tooltip.capital} />
         </div>
       {/if}
     </div>

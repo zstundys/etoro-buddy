@@ -1,7 +1,6 @@
 <script lang="ts">
   import type { EnrichedPosition, Candle } from "$lib/etoro-api";
   import {
-    currency as fmt,
     percent as pctFmt,
     shortDate as dateFmt,
     monthYear as monthFmt,
@@ -10,6 +9,7 @@
     normalizeSymbol,
   } from "$lib/format";
   import DateRangeFilter from "./DateRangeFilter.svelte";
+  import Money from "./Money.svelte";
   import Sparkline from "./charts/Sparkline.svelte";
   import TickerLink from "./TickerLink.svelte";
 
@@ -367,25 +367,23 @@
           <span class="flex-1"></span>
           <span
             >Fees / Div
-            <span
-              class="font-medium {fFees < 0
-                ? 'text-gain'
-                : fFees > 0
-                  ? 'text-loss'
-                  : ''}"
-            >
-              {fFees < 0 ? "+" : ""}{fmt.format(Math.abs(fFees))}
-            </span>
+            {#if fFees !== 0}
+              <Money
+                value={fFees}
+                abs
+                signOverride={fFees < 0 ? "+" : ""}
+                class="font-medium {fFees < 0 ? 'text-gain' : 'text-loss'}"
+              />
+            {:else}
+              <span class="font-medium">—</span>
+            {/if}
           </span>
           <span
-            >Invested <span class="font-medium">{fmt.format(fInvested)}</span
-            ></span
+            >Invested <Money value={fInvested} class="font-medium" /></span
           >
           <span
             >P&L
-            <span class="font-medium {pnlColor(fPnl)}">
-              {pnlSign(fPnl)}{fmt.format(fPnl)}
-            </span>
+            <Money value={fPnl} showSign class="font-medium" />
           </span>
           <span
             >P&L %
@@ -535,20 +533,19 @@
                 </div>
                 <div class="whitespace-nowrap px-4 text-right text-sm">
                   <p class="text-xs text-text-secondary">Invested</p>
-                  <p class="font-medium">{fmt.format(month.totalAmount)}</p>
+                  <p class="font-medium"><Money value={month.totalAmount} /></p>
                 </div>
                 <div class="col-span-3"></div>
                 <div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
                   <p class="text-xs text-text-secondary">Fees / Div</p>
                   {#if month.totalFees !== 0}
-                    <p
-                      class="font-medium {month.totalFees < 0
-                        ? 'text-gain'
-                        : 'text-loss'}"
-                    >
-                      {month.totalFees < 0 ? "+" : ""}{fmt.format(
-                        Math.abs(month.totalFees),
-                      )}
+                    <p class="font-medium">
+                      <Money
+                        value={month.totalFees}
+                        abs
+                        signOverride={month.totalFees < 0 ? "+" : ""}
+                        class={month.totalFees < 0 ? "text-gain" : "text-loss"}
+                      />
                     </p>
                   {:else}
                     <p class="font-medium text-text-secondary">—</p>
@@ -556,8 +553,8 @@
                 </div>
                 <div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
                   <p class="text-xs text-text-secondary">P&L</p>
-                  <p class="font-medium {pnlColor(month.totalPnl)}">
-                    {pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
+                  <p class="font-medium">
+                    <Money value={month.totalPnl} showSign />
                   </p>
                 </div>
                 <div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
@@ -571,7 +568,7 @@
                 >
                   <p class="text-xs text-text-secondary">Total</p>
                   <p class="font-medium">
-                    {fmt.format(month.totalAmount + month.totalPnl)}
+                    <Money value={month.totalAmount + month.totalPnl} />
                   </p>
                 </div>
               </button>
@@ -638,7 +635,7 @@
                       <div
                         class="relative flex items-center gap-2 px-3 py-2 text-right font-medium"
                       >
-                        {fmt.format(pos.amount)}
+                        <Money value={pos.amount} />
                         {#if sd.length >= 2}
                           <span class="hidden sm:inline-block"
                             ><Sparkline
@@ -652,36 +649,38 @@
                       <div
                         class="px-3 py-2 text-right tabular-nums text-text-secondary"
                       >
-                        {pos.units.toFixed(4)}
+                        <span data-private>{pos.units.toFixed(4)}</span>
                       </div>
                       <div class="px-3 py-2 text-right tabular-nums">
-                        {fmt.format(pos.openRate)}
+                        <Money value={pos.openRate} public />
                       </div>
                       <div class="px-3 py-2 text-right tabular-nums">
-                        {pos.currentRate !== undefined
-                          ? fmt.format(pos.currentRate)
-                          : "—"}
+                        {#if pos.currentRate !== undefined}
+                          <Money value={pos.currentRate} public />
+                        {:else}
+                          —
+                        {/if}
+                      </div>
+                      <div class="px-3 py-2 text-right tabular-nums">
+                        {#if pos.totalFees !== 0}
+                          <Money
+                            value={pos.totalFees}
+                            abs
+                            signOverride={pos.totalFees < 0 ? "+" : ""}
+                            class={pos.totalFees < 0 ? "text-gain" : pos.totalFees > 0 ? "text-loss" : ""}
+                          />
+                        {:else}
+                          <span class="text-text-secondary">—</span>
+                        {/if}
                       </div>
                       <div
-                        class="px-3 py-2 text-right tabular-nums {pos.totalFees <
-                        0
-                          ? 'text-gain'
-                          : pos.totalFees > 0
-                            ? 'text-loss'
-                            : 'text-text-secondary'}"
+                        class="px-3 py-2 text-right tabular-nums font-medium"
                       >
-                        {pos.totalFees !== 0
-                          ? `${pos.totalFees < 0 ? "+" : ""}${fmt.format(Math.abs(pos.totalFees))}`
-                          : "—"}
-                      </div>
-                      <div
-                        class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(
-                          pos.pnl,
-                        )}"
-                      >
-                        {pos.pnl !== undefined
-                          ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}`
-                          : "—"}
+                        {#if pos.pnl !== undefined}
+                          <Money value={pos.pnl} showSign />
+                        {:else}
+                          <span class={pnlColor(pos.pnl)}>—</span>
+                        {/if}
                       </div>
                       <div
                         class="px-3 py-2 text-right tabular-nums {pnlColor(
@@ -695,7 +694,7 @@
                       <div
                         class="px-3 py-2 pr-5 text-right tabular-nums font-medium"
                       >
-                        {fmt.format(pos.amount + (pos.pnl ?? 0))}
+                        <Money value={pos.amount + (pos.pnl ?? 0)} />
                       </div>
                     </div>
                   {/each}
@@ -792,7 +791,7 @@
                 </div>
                 <div class="whitespace-nowrap px-4 text-right text-sm">
                   <p class="text-xs text-text-secondary">Invested</p>
-                  <p class="font-medium">{fmt.format(group.totalAmount)}</p>
+                  <p class="font-medium"><Money value={group.totalAmount} /></p>
                 </div>
                 {#if groupSparkline.length >= 2}
                   <div
@@ -806,14 +805,13 @@
                 <div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
                   <p class="text-xs text-text-secondary">Fees / Div</p>
                   {#if group.totalFees !== 0}
-                    <p
-                      class="font-medium {group.totalFees < 0
-                        ? 'text-gain'
-                        : 'text-loss'}"
-                    >
-                      {group.totalFees < 0 ? "+" : ""}{fmt.format(
-                        Math.abs(group.totalFees),
-                      )}
+                    <p class="font-medium">
+                      <Money
+                        value={group.totalFees}
+                        abs
+                        signOverride={group.totalFees < 0 ? "+" : ""}
+                        class={group.totalFees < 0 ? "text-gain" : "text-loss"}
+                      />
                     </p>
                   {:else}
                     <p class="font-medium text-text-secondary">—</p>
@@ -821,8 +819,8 @@
                 </div>
                 <div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
                   <p class="text-xs text-text-secondary">P&L</p>
-                  <p class="font-medium {pnlColor(group.totalPnl)}">
-                    {pnlSign(group.totalPnl)}{fmt.format(group.totalPnl)}
+                  <p class="font-medium">
+                    <Money value={group.totalPnl} showSign />
                   </p>
                 </div>
                 <div class="min-w-24 whitespace-nowrap px-4 text-right text-sm">
@@ -836,7 +834,7 @@
                 >
                   <p class="text-xs text-text-secondary">Total</p>
                   <p class="font-medium">
-                    {fmt.format(group.totalAmount + group.totalPnl)}
+                    <Money value={group.totalAmount + group.totalPnl} />
                   </p>
                 </div>
               </button>
@@ -888,32 +886,27 @@
                           </span>
                         </div>
                         <div class="whitespace-nowrap px-4 text-right text-xs">
-                          {fmt.format(month.totalAmount)}
+                          <Money value={month.totalAmount} />
                         </div>
                         <div class="col-span-3"></div>
                         <div
                           class="min-w-24 whitespace-nowrap px-4 text-right text-xs"
                         >
                           {#if month.totalFees !== 0}
-                            <span
-                              class={month.totalFees < 0
-                                ? "text-gain"
-                                : "text-loss"}
-                            >
-                              {month.totalFees < 0 ? "+" : ""}{fmt.format(
-                                Math.abs(month.totalFees),
-                              )}
-                            </span>
+                            <Money
+                              value={month.totalFees}
+                              abs
+                              signOverride={month.totalFees < 0 ? "+" : ""}
+                              class={month.totalFees < 0 ? "text-gain" : "text-loss"}
+                            />
                           {:else}
                             <span class="text-text-secondary">—</span>
                           {/if}
                         </div>
                         <div
-                          class="min-w-24 whitespace-nowrap px-4 text-right text-xs {pnlColor(
-                            month.totalPnl,
-                          )}"
+                          class="min-w-24 whitespace-nowrap px-4 text-right text-xs"
                         >
-                          {pnlSign(month.totalPnl)}{fmt.format(month.totalPnl)}
+                          <Money value={month.totalPnl} showSign />
                         </div>
                         <div
                           class="min-w-24 whitespace-nowrap px-4 text-right text-xs {pnlColor(
@@ -927,7 +920,7 @@
                         <div
                           class="min-w-24 whitespace-nowrap pl-4 pr-5 text-right text-xs font-medium"
                         >
-                          {fmt.format(month.totalAmount + month.totalPnl)}
+                          <Money value={month.totalAmount + month.totalPnl} />
                         </div>
                       </button>
 
@@ -968,41 +961,43 @@
                                 </span>
                               </div>
                               <div class="px-3 py-2 text-right font-medium">
-                                {fmt.format(pos.amount)}
+                                <Money value={pos.amount} />
                               </div>
                               <div
                                 class="px-3 py-2 text-right tabular-nums text-text-secondary"
                               >
-                                {pos.units.toFixed(4)}
+                                <span data-private>{pos.units.toFixed(4)}</span>
                               </div>
                               <div class="px-3 py-2 text-right tabular-nums">
-                                {fmt.format(pos.openRate)}
+                                <Money value={pos.openRate} public />
                               </div>
                               <div class="px-3 py-2 text-right tabular-nums">
-                                {pos.currentRate !== undefined
-                                  ? fmt.format(pos.currentRate)
-                                  : "—"}
+                                {#if pos.currentRate !== undefined}
+                                  <Money value={pos.currentRate} public />
+                                {:else}
+                                  —
+                                {/if}
+                              </div>
+                              <div class="px-3 py-2 text-right tabular-nums">
+                                {#if pos.totalFees !== 0}
+                                  <Money
+                                    value={pos.totalFees}
+                                    abs
+                                    signOverride={pos.totalFees < 0 ? "+" : ""}
+                                    class={pos.totalFees < 0 ? "text-gain" : pos.totalFees > 0 ? "text-loss" : ""}
+                                  />
+                                {:else}
+                                  <span class="text-text-secondary">—</span>
+                                {/if}
                               </div>
                               <div
-                                class="px-3 py-2 text-right tabular-nums {pos.totalFees <
-                                0
-                                  ? 'text-gain'
-                                  : pos.totalFees > 0
-                                    ? 'text-loss'
-                                    : 'text-text-secondary'}"
+                                class="px-3 py-2 text-right tabular-nums font-medium"
                               >
-                                {pos.totalFees !== 0
-                                  ? `${pos.totalFees < 0 ? "+" : ""}${fmt.format(Math.abs(pos.totalFees))}`
-                                  : "—"}
-                              </div>
-                              <div
-                                class="px-3 py-2 text-right tabular-nums font-medium {pnlColor(
-                                  pos.pnl,
-                                )}"
-                              >
-                                {pos.pnl !== undefined
-                                  ? `${pnlSign(pos.pnl)}${fmt.format(pos.pnl)}`
-                                  : "—"}
+                                {#if pos.pnl !== undefined}
+                                  <Money value={pos.pnl} showSign />
+                                {:else}
+                                  <span class={pnlColor(pos.pnl)}>—</span>
+                                {/if}
                               </div>
                               <div
                                 class="px-3 py-2 text-right tabular-nums {pnlColor(
@@ -1016,7 +1011,7 @@
                               <div
                                 class="px-3 py-2 pr-5 text-right tabular-nums font-medium"
                               >
-                                {fmt.format(pos.amount + (pos.pnl ?? 0))}
+                                <Money value={pos.amount + (pos.pnl ?? 0)} />
                               </div>
                             </div>
                           {/each}

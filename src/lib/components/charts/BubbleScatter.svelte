@@ -3,11 +3,11 @@
   import type { EnrichedPosition } from "$lib/etoro-api";
   import { COLORS } from "$lib/chart-utils";
   import {
-    currency as fmt,
     percent as pctFmt,
     shortDate as dateFmt,
     normalizeSymbol,
   } from "$lib/format";
+  import Money from "../Money.svelte";
 
   let { positions }: { positions: EnrichedPosition[] } = $props();
 
@@ -219,11 +219,11 @@
       <div class="font-semibold text-text-primary">{tooltip.symbol}</div>
       <div class="mt-1 text-text-secondary">{tooltip.date}</div>
       <div class="mt-0.5 text-text-secondary">
-        Invested: {fmt.format(tooltip.amount)}
+        Invested: <Money value={tooltip.amount} />
       </div>
       {#if tooltip.pnl !== undefined}
         <div class="mt-0.5 {tooltip.pnl >= 0 ? 'text-gain' : 'text-loss'}">
-          P&L: {tooltip.pnl >= 0 ? "+" : ""}{fmt.format(tooltip.pnl)}
+          P&L: <Money value={tooltip.pnl} showSign />
           {#if tooltip.pnlPercent !== undefined}
             ({tooltip.pnlPercent >= 0 ? "+" : ""}{pctFmt.format(
               tooltip.pnlPercent,

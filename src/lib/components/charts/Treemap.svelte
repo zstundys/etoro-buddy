@@ -3,6 +3,7 @@
   import type { EnrichedPosition } from "$lib/etoro-api";
   import { COLORS, pnlColorScale, groupBySymbol } from "$lib/chart-utils";
   import { currency as fmt, percent as pctFmt } from "$lib/format";
+  import Money from "../Money.svelte";
 
   interface LeafData {
     name: string;
@@ -318,10 +319,10 @@
           : ""}
       </div>
       <div class="mt-0.5 text-text-secondary">
-        Invested: {fmt.format(tooltip.amount)}
+        Invested: <Money value={tooltip.amount} />
       </div>
       <div class="mt-0.5 {tooltip.pnl >= 0 ? 'text-gain' : 'text-loss'}">
-        P&L: {tooltip.pnl >= 0 ? "+" : ""}{fmt.format(tooltip.pnl)}
+        P&L: <Money value={tooltip.pnl} showSign />
         ({tooltip.pnlPercent >= 0 ? "+" : ""}{pctFmt.format(
           tooltip.pnlPercent,
         )}%)

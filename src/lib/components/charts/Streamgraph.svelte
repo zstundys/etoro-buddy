@@ -2,7 +2,8 @@
   import * as d3 from "d3";
   import type { EnrichedPosition } from "$lib/etoro-api";
   import { COLORS, symbolColor } from "$lib/chart-utils";
-  import { currency as fmt, normalizeSymbol } from "$lib/format";
+  import { normalizeSymbol } from "$lib/format";
+  import Money from "../Money.svelte";
 
   let {
     positions,
@@ -333,7 +334,7 @@
       <div class="font-semibold text-text-primary">{tooltip.symbol}</div>
       <div class="mt-1 text-text-secondary">{tooltip.monthLabel}</div>
       <div class="mt-0.5 text-text-secondary">
-        Invested: {fmt.format(tooltip.totalInvested)}
+        Invested: <Money value={tooltip.totalInvested} />
       </div>
     </div>
   {/if}

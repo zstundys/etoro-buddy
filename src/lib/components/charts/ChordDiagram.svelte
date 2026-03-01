@@ -2,7 +2,8 @@
   import * as d3 from "d3";
   import type { EnrichedPosition } from "$lib/etoro-api";
   import { COLORS, symbolColor } from "$lib/chart-utils";
-  import { currency as fmt, normalizeSymbol } from "$lib/format";
+  import { normalizeSymbol } from "$lib/format";
+  import Money from "../Money.svelte";
 
   let {
     positions,
@@ -385,12 +386,12 @@
           {tooltip.data.month} → {tooltip.data.symbol}
         </div>
         <div class="mt-1 text-text-secondary">
-          Amount: {fmt.format(tooltip.data.amount)}
+          Amount: <Money value={tooltip.data.amount} />
         </div>
       {:else}
         <div class="font-semibold text-text-primary">{tooltip.data.label}</div>
         <div class="mt-0.5 text-text-secondary">
-          Total: {fmt.format(tooltip.data.total)}
+          Total: <Money value={tooltip.data.total} />
         </div>
         {#if tooltip.data.connections.length > 0}
           <div class="mt-1.5 border-t border-border pt-1.5">
@@ -400,7 +401,7 @@
                   >{tooltip.data.isMonth ? "→" : "←"} {conn.label}</span
                 >
                 <span class="shrink-0 text-text-primary"
-                  >{fmt.format(conn.amount)}</span
+                  ><Money value={conn.amount} /></span
                 >
               </div>
             {/each}

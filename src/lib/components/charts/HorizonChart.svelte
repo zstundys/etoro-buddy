@@ -2,7 +2,8 @@
   import * as d3 from "d3";
   import type { EnrichedPosition, Candle } from "$lib/etoro-api";
   import { COLORS, groupBySymbol } from "$lib/chart-utils";
-  import { percent as pctFmt, currency as currFmt } from "$lib/format";
+  import { percent as pctFmt } from "$lib/format";
+  import Money from "../Money.svelte";
 
   let {
     positions,
@@ -270,7 +271,7 @@
         {tooltip.pct >= 0 ? "+" : ""}{pctFmt.format(tooltip.pct)}%
       </div>
       <div class="mt-0.5 text-text-secondary">
-        {currFmt.format(tooltip.price)}
+        <Money value={tooltip.price} public />
       </div>
     </div>
   {/if}
