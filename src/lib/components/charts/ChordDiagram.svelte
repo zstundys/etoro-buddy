@@ -249,7 +249,7 @@
       target: { ...c.target, radius: outerRadius },
     }));
 
-    const labelPad = 50;
+    const labelPad = Math.min(50, Math.floor(size * 0.12));
     const viewSize = size + labelPad * 2;
 
     let svg = d3.select(containerEl).select<SVGSVGElement>("svg");
@@ -257,9 +257,10 @@
       svg = d3.select(containerEl).append("svg");
     }
     svg
-      .attr("width", viewSize)
-      .attr("height", viewSize)
-      .attr("viewBox", `${-labelPad} ${-labelPad} ${viewSize} ${viewSize}`);
+      .attr("width", "100%")
+      .attr("height", "100%")
+      .attr("viewBox", `${-labelPad} ${-labelPad} ${viewSize} ${viewSize}`)
+      .attr("preserveAspectRatio", "xMidYMid meet");
     svg.selectAll("*").remove();
 
     const g = svg
@@ -366,8 +367,8 @@
   });
 </script>
 
-<div class="relative flex min-h-[300px] w-full justify-center">
-  <div bind:this={containerEl} class="w-full max-w-[500px] aspect-square"></div>
+<div class="relative flex min-h-[280px] min-w-0 w-full justify-center">
+  <div bind:this={containerEl} class="w-full max-w-[500px] min-w-0 aspect-square overflow-hidden"></div>
   {#if !hasEnoughData}
     <div
       class="absolute inset-0 flex items-center justify-center text-text-secondary pointer-events-none"
