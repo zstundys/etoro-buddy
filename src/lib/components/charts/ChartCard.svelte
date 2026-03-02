@@ -7,6 +7,7 @@
     description,
     expanded = true,
     header,
+    actions,
     children,
   }: {
     storageKey: string;
@@ -14,6 +15,7 @@
     description?: string;
     expanded?: boolean;
     header?: Snippet<[{ open: boolean; toggle: () => void }]>;
+    actions?: Snippet;
     children: Snippet;
   } = $props();
 
@@ -91,6 +93,11 @@
             <line x1="12" y1="8" x2="12.01" y2="8" />
           </svg>
         </button>
+      {/if}
+      {#if actions && open}
+        <div class="ml-auto -my-1">
+          {@render actions()}
+        </div>
       {/if}
     </div>
   {/if}

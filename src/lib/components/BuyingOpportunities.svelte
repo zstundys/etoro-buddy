@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { InstrumentSnapshot, Candle, Watchlist } from "$lib/etoro-api";
   import { percent as pctFmt, pnlSign, normalizeSymbol } from "$lib/format";
+  import { findCandleByDate, pctChange, sma } from "$lib/candle-utils";
   import TickerLink from "./TickerLink.svelte";
   import Sparkline from "./charts/Sparkline.svelte";
 
@@ -34,37 +35,6 @@
     changeYTD?: number;
     diff200MA?: number;
   };
-
-  function findCandleByDate(
-    candles: Candle[],
-    targetDate: Date,
-  ): Candle | undefined {
-    const target = targetDate.getTime();
-    let best: Candle | undefined;
-    let bestDist = Infinity;
-    for (const c of candles) {
-      const d = new Date(c.date).getTime();
-      if (d > target) break;
-      const dist = Math.abs(d - target);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = c;
-      }
-    }
-    return best;
-  }
-
-  function pctChange(current: number, previous: number): number {
-    if (previous === 0) return 0;
-    return ((current - previous) / previous) * 100;
-  }
-
-  function sma(candles: Candle[], period: number): number | undefined {
-    if (candles.length < period) return undefined;
-    const slice = candles.slice(-period);
-    const sum = slice.reduce((acc, c) => acc + c.close, 0);
-    return sum / period;
-  }
 
   type SortColumn =
     | "1d"

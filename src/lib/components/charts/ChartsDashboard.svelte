@@ -15,6 +15,7 @@
   import PerformanceRace from "./PerformanceRace.svelte";
   import HorizonChart from "./HorizonChart.svelte";
   import VolumeRibbons from "./VolumeRibbons.svelte";
+  import TargetAllocation from "./TargetAllocation.svelte";
   import ChartCard from "./ChartCard.svelte";
 
   let {
@@ -34,6 +35,7 @@
   const hasCandleData = $derived(candleMap.size > 0);
 
   let colorMap = $state<Map<string, string>>(new Map());
+  let editingBuckets = $state(false);
 
   $effect(() => {
     if (positions.length === 0) return;
@@ -154,6 +156,31 @@
           </div>
         </div>
       {/if}
+
+      <ChartCard
+        storageKey="chart-target-allocation"
+        title="Target Allocation"
+        description="Group your holdings into named buckets with target percentage weights and compare them against your actual allocation. The donut chart shows targets (faded) vs actuals (filled arcs) — taller means overweight, shorter means underweight. Expand any bucket to see individual holdings and their weight. Use the Cash Allocation Preview to simulate deploying cash: choose Rebalance mode to prioritise underweight buckets, or By Target % to split evenly by target weights. If market signals are available, you can sort and weight by opportunity metrics like distance from 200-day MA. Exclude individual instruments to redistribute their share across the rest."
+      >
+        {#snippet actions()}
+          <button
+            type="button"
+            class="rounded-lg px-3 py-1 text-xs font-medium transition-colors {editingBuckets
+              ? 'bg-brand/15 text-brand hover:bg-brand/25'
+              : 'text-text-secondary hover:bg-surface-overlay hover:text-text-primary'}"
+            onclick={() => (editingBuckets = !editingBuckets)}
+          >
+            {editingBuckets ? "Done" : "Edit buckets"}
+          </button>
+        {/snippet}
+        <TargetAllocation
+          positions={filtered.positions}
+          {credit}
+          {candleMap}
+          editing={editingBuckets}
+          oneditchange={(v) => (editingBuckets = v)}
+        />
+      </ChartCard>
 
       <ChartCard
         storageKey="chart-allocation"
