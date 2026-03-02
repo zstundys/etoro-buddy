@@ -13,12 +13,66 @@ import {
   type Watchlist,
   type InstrumentSnapshot,
 } from "./etoro-api";
+import { createCache, invalidateAll } from "./api-cache";
 import { env } from "$env/dynamic/public";
 
 const STORAGE_KEY = "etoro-api-keys";
 const LAST_LOADED_KEY = "etoro-last-loaded";
-const PORTFOLIO_KEY = "etoro-portfolio";
-const TRADES_KEY = "etoro-trades";
+const OPPORTUNITY_SOURCE_KEY = "etoro-buying-opportunities-source";
+
+function getStoredSource(): string | null {
+  if (typeof localStorage === "undefined") return null;
+  try {
+    return localStorage.getItem(OPPORTUNITY_SOURCE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredSource(source: string) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(OPPORTUNITY_SOURCE_KEY, source);
+  } catch {
+    /* ignore */
+  }
+}
+
+const portfolioCache = createCache<PortfolioData>({ key: "etoro-portfolio" });
+const tradesCache = createCache<EnrichedTrade[]>({ key: "etoro-trades" });
+
+function serializeCandleMap(m: Map<number, Candle[]>): string {
+  return JSON.stringify(Object.fromEntries(m));
+}
+
+function deserializeCandleMap(raw: string): Map<number, Candle[]> | null {
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const map = new Map<number, Candle[]>();
+    for (const [k, v] of Object.entries(obj)) {
+      if (Array.isArray(v) && v.length > 0) {
+        const id = Number(k);
+        if (!isNaN(id)) map.set(id, v as Candle[]);
+      }
+    }
+    return map.size > 0 ? map : null;
+  } catch {
+    return null;
+  }
+}
+
+const candlesCache = createCache<Map<number, Candle[]>>({
+  key: "etoro-candles",
+  serialize: serializeCandleMap,
+  deserialize: deserializeCandleMap,
+});
+
+const watchlistCandlesCache = createCache<Map<number, Candle[]>, string>({
+  keyPrefix: "etoro-watchlist-candles",
+  keyFn: (id) => id,
+  serialize: serializeCandleMap,
+  deserialize: deserializeCandleMap,
+});
 
 const ENV_FALLBACK_KEYS: ApiKeys | null =
   env.PUBLIC_ETORO_API_KEY && env.PUBLIC_ETORO_USER_KEY
@@ -64,52 +118,22 @@ function writeLastLoaded(date: Date | null) {
   }
 }
 
-function readCachedData(): {
-  portfolio: PortfolioData;
-  trades: EnrichedTrade[];
-} | null {
-  if (typeof localStorage === "undefined") return null;
-  try {
-    const rawPortfolio = localStorage.getItem(PORTFOLIO_KEY);
-    const rawTrades = localStorage.getItem(TRADES_KEY);
-    if (!rawPortfolio) return null;
-    const portfolio = JSON.parse(rawPortfolio);
-    const trades = rawTrades ? JSON.parse(rawTrades) : [];
-    return { portfolio, trades };
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedData(portfolio: PortfolioData, trades: EnrichedTrade[]) {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(portfolio));
-    localStorage.setItem(TRADES_KEY, JSON.stringify(trades));
-  } catch {
-    // localStorage quota exceeded — silently ignore
-  }
-}
-
-function clearCachedData() {
-  if (typeof localStorage === "undefined") return;
-  localStorage.removeItem(PORTFOLIO_KEY);
-  localStorage.removeItem(TRADES_KEY);
-}
-
 export function createClientApi() {
-  const cached = readKeys() ? readCachedData() : null;
+  const hasApiKeys = readKeys() !== null;
+  const cachedPortfolio = hasApiKeys ? portfolioCache.get() : null;
+  const cachedTrades = hasApiKeys ? tradesCache.get() : null;
 
   let keys = $state<ApiKeys | null>(readKeys());
-  let portfolio = $state<PortfolioData | null>(cached?.portfolio ?? null);
-  let trades = $state<EnrichedTrade[]>(cached?.trades ?? []);
+  let portfolio = $state<PortfolioData | null>(cachedPortfolio);
+  let trades = $state<EnrichedTrade[]>(cachedTrades ?? []);
   let loading = $state(false);
   let refreshing = $state(false);
   let error = $state<string | null>(null);
   let lastLoaded = $state<Date | null>(readLastLoaded());
-  let fromCache = $state(cached !== null);
+  let fromCache = $state(cachedPortfolio !== null);
   let candles = $state<Map<number, Candle[]>>(new Map());
   let candlesLoading = $state(false);
+  let candlesLoadAttempted = $state(false);
   let sectorMap = $state<Map<number, string>>(new Map());
   let sectorMapLoading = $state(false);
   let sectorMapLoaded = $state(false);
@@ -118,6 +142,8 @@ export function createClientApi() {
   let watchlistInstruments = $state<InstrumentSnapshot[]>([]);
   let watchlistCandles = $state<Map<number, Candle[]>>(new Map());
   let watchlistLoading = $state(false);
+  let opportunitySource = $state("portfolio");
+  let hasAppliedStoredSource = $state(false);
 
   const hasKeys = $derived(keys !== null);
 
@@ -135,7 +161,18 @@ export function createClientApi() {
     error = null;
     lastLoaded = null;
     writeLastLoaded(null);
-    clearCachedData();
+    invalidateAll();
+    opportunitySource = "portfolio";
+    hasAppliedStoredSource = false;
+    watchlists = [];
+    watchlistsLoaded = false;
+    watchlistInstruments = [];
+    watchlistCandles = new Map();
+    candles = new Map();
+    candlesLoadAttempted = false;
+    sectorMap = new Map();
+    sectorMapLoaded = false;
+    setStoredSource("portfolio");
   }
 
   async function load() {
@@ -154,7 +191,8 @@ export function createClientApi() {
       const now = new Date();
       lastLoaded = now;
       writeLastLoaded(now);
-      writeCachedData(p, t);
+      portfolioCache.set(p);
+      tradesCache.set(t);
     } catch (e) {
       error = e instanceof Error ? e.message : "Failed to load data";
       portfolio = null;
@@ -165,14 +203,29 @@ export function createClientApi() {
   }
 
   async function loadCandles() {
-    if (!keys || !portfolio || candlesLoading) return;
+    if (!keys || !portfolio || candlesLoading || candlesLoadAttempted) return;
     const ids = [...new Set(portfolio.positions.map((p) => p.instrumentId))];
     if (ids.length === 0) return;
+    candlesLoadAttempted = true;
+    const cached = candlesCache.get();
+    const cacheCoversIds =
+      cached &&
+      ids.every((id) => cached.has(id) && (cached.get(id)?.length ?? 0) >= 2);
+    if (cacheCoversIds) {
+      candles = new Map(cached);
+      candlesLoading = false;
+      return;
+    }
+    if (cached && cached.size > 0) {
+      candles = new Map(cached);
+    }
     candlesLoading = true;
     try {
-      candles = await fetchAllCandles(keys, ids, 250);
+      const fresh = await fetchAllCandles(keys, ids, 250);
+      candles = fresh;
+      candlesCache.set(fresh);
     } catch {
-      // non-critical — charts just won't render
+      // non-critical — charts use cached data if available
     } finally {
       candlesLoading = false;
     }
@@ -217,9 +270,14 @@ export function createClientApi() {
     if (!keys || watchlistLoading) return;
     const wl = watchlists.find((w) => w.id === watchlistId);
     if (!wl || wl.instrumentIds.length === 0) return;
+    const cached = watchlistCandlesCache.get(watchlistId);
+    if (cached && cached.size > 0) {
+      watchlistCandles = new Map(cached);
+    } else {
+      watchlistCandles = new Map();
+    }
     watchlistLoading = true;
     watchlistInstruments = [];
-    watchlistCandles = new Map();
     try {
       const instruments = await fetchWatchlistInstruments(
         keys,
@@ -227,20 +285,90 @@ export function createClientApi() {
       );
       watchlistInstruments = instruments;
       const ids = instruments.map((i) => i.instrumentId);
-      if (ids.length > 0) {
-        watchlistCandles = await fetchAllCandles(keys, ids, 250);
+      if (ids.length === 0) {
+        watchlistCandles = new Map();
+        return;
+      }
+      const cacheCoversIds =
+        cached &&
+        ids.every((id) => cached.has(id) && (cached.get(id)?.length ?? 0) >= 2);
+      if (cacheCoversIds) {
+        watchlistCandles = new Map(cached);
+      } else {
+        if (cached && cached.size > 0) {
+          watchlistCandles = new Map(cached);
+        }
+        const fresh = await fetchAllCandles(keys, ids, 250);
+        watchlistCandles = fresh;
+        watchlistCandlesCache.set(fresh, watchlistId);
       }
     } catch {
       watchlistInstruments = [];
-      watchlistCandles = new Map();
+      if (cached && cached.size > 0) {
+        watchlistCandles = new Map(cached);
+      } else {
+        watchlistCandles = new Map();
+      }
     } finally {
       watchlistLoading = false;
     }
   }
 
+  function setOpportunitySource(source: string) {
+    opportunitySource = source;
+    setStoredSource(source);
+    if (source !== "portfolio") {
+      loadWatchlistData(source);
+    }
+  }
+
+  $effect(() => {
+    if (watchlists.length === 0) return;
+
+    if (!hasAppliedStoredSource) {
+      hasAppliedStoredSource = true;
+      const stored = getStoredSource();
+      if (stored === "portfolio") {
+        opportunitySource = "portfolio";
+        return;
+      }
+      if (stored && watchlists.some((w) => w.id === stored)) {
+        opportunitySource = stored;
+        loadWatchlistData(stored);
+        return;
+      }
+      const fallback =
+        watchlists.length > 0 ? watchlists[0].id : "portfolio";
+      opportunitySource = fallback;
+      setStoredSource(fallback);
+      if (fallback !== "portfolio") {
+        loadWatchlistData(fallback);
+      }
+      return;
+    }
+
+    if (opportunitySource === "portfolio") return;
+    if (watchlists.some((w) => w.id === opportunitySource)) return;
+
+    const fallback =
+      watchlists.length > 0 ? watchlists[0].id : "portfolio";
+    opportunitySource = fallback;
+    setStoredSource(fallback);
+    if (fallback !== "portfolio") {
+      loadWatchlistData(fallback);
+    }
+  });
+
   async function refresh() {
     if (!keys || refreshing || loading) return;
     refreshing = true;
+    invalidateAll();
+    candlesLoadAttempted = false;
+    watchlistsLoaded = false;
+    sectorMapLoaded = false;
+    hasAppliedStoredSource = false;
+    watchlists = [];
+    sectorMap = new Map();
     try {
       const [p, t] = await Promise.all([
         fetchPortfolio(keys),
@@ -253,7 +381,10 @@ export function createClientApi() {
       const now = new Date();
       lastLoaded = now;
       writeLastLoaded(now);
-      writeCachedData(p, t);
+      portfolioCache.set(p);
+      tradesCache.set(t);
+      candles = new Map();
+      watchlistCandles = new Map();
     } catch (e) {
       error = e instanceof Error ? e.message : "Failed to refresh data";
     } finally {
@@ -310,6 +441,9 @@ export function createClientApi() {
     get watchlistLoading() {
       return watchlistLoading;
     },
+    get opportunitySource() {
+      return opportunitySource;
+    },
     saveKeys,
     clearKeys,
     load,
@@ -317,6 +451,7 @@ export function createClientApi() {
     loadSectorMap,
     loadWatchlists,
     loadWatchlistData,
+    setOpportunitySource,
     refresh,
   };
 }

@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { createCache } from "./api-cache";
 
 const BASE_URL = "https://public-api.etoro.com/api/v1";
 
@@ -174,6 +175,32 @@ export type PortfolioData = {
   totalPnl: number;
 };
 
+// --- Caches ---
+
+const instrumentsCache = createCache<Instrument[], number[]>({
+  keyPrefix: "etoro-instruments",
+  keyFn: (ids) => [...ids].sort((a, b) => a - b).join(","),
+});
+
+const ratesCache = createCache<Rate[], number[]>({
+  keyPrefix: "etoro-rates",
+  keyFn: (ids) => [...ids].sort((a, b) => a - b).join(","),
+});
+
+const industriesCache = createCache<Map<number, string>>({
+  key: "etoro-stocks-industries",
+  serialize: (m) => JSON.stringify([...m.entries()]),
+  deserialize: (raw) =>
+    new Map(
+      (JSON.parse(raw) as [string | number, string][]).map(([k, v]) => [
+        Number(k),
+        v,
+      ]),
+    ),
+});
+
+const watchlistsCache = createCache<Watchlist[]>({ key: "etoro-watchlists" });
+
 // --- Helpers ---
 
 function safeParseArray<T>(
@@ -197,13 +224,24 @@ export async function fetchInstruments(
   keys: ApiKeys,
   ids: number[],
 ): Promise<Instrument[]> {
+  if (ids.length === 0) return [];
+  const cached = instrumentsCache.get(ids);
+  if (
+    cached &&
+    cached.length > 0 &&
+    ids.every((id) => cached.some((i) => i.instrumentId === id))
+  ) {
+    return cached;
+  }
   try {
     const res = await fetch(
       `${BASE_URL}/market-data/instruments?instrumentIds=${ids.join(",")}`,
       { headers: buildHeaders(keys) },
     );
     if (!res.ok) return [];
-    return safeParseArray(InstrumentSchema, await res.json());
+    const result = safeParseArray(InstrumentSchema, await res.json());
+    if (result.length > 0) instrumentsCache.set(result, ids);
+    return result;
   } catch {
     return [];
   }
@@ -213,13 +251,24 @@ export async function fetchRates(
   keys: ApiKeys,
   ids: number[],
 ): Promise<Rate[]> {
+  if (ids.length === 0) return [];
+  const cached = ratesCache.get(ids);
+  if (
+    cached &&
+    cached.length > 0 &&
+    ids.every((id) => cached.some((r) => r.instrumentId === id))
+  ) {
+    return cached;
+  }
   try {
     const res = await fetch(
       `${BASE_URL}/market-data/instruments/rates?instrumentIds=${ids.join(",")}`,
       { headers: buildHeaders(keys) },
     );
     if (!res.ok) return [];
-    return safeParseArray(RateSchema, await res.json());
+    const result = safeParseArray(RateSchema, await res.json());
+    if (result.length > 0) ratesCache.set(result, ids);
+    return result;
   } catch {
     return [];
   }
@@ -270,6 +319,8 @@ function enrichPositions(
 export async function fetchStocksIndustries(
   keys: ApiKeys,
 ): Promise<Map<number, string>> {
+  const cached = industriesCache.get();
+  if (cached && cached.size > 0) return cached;
   try {
     const res = await fetch(`${BASE_URL}/market-data/stocks-industries`, {
       headers: buildHeaders(keys),
@@ -283,6 +334,7 @@ export async function fetchStocksIndustries(
       const name = item.industryName ?? item.IndustryName;
       if (id != null && name) map.set(id, name);
     }
+    if (map.size > 0) industriesCache.set(map);
     return map;
   } catch {
     return new Map();
@@ -407,6 +459,8 @@ export async function fetchAllCandles(
 }
 
 export async function fetchWatchlists(keys: ApiKeys): Promise<Watchlist[]> {
+  const cached = watchlistsCache.get();
+  if (cached && cached.length > 0) return cached;
   try {
     const res = await fetch(
       `${BASE_URL}/watchlists?itemsPerPageForSingle=200`,
@@ -416,7 +470,7 @@ export async function fetchWatchlists(keys: ApiKeys): Promise<Watchlist[]> {
     const json = await res.json();
     const lists = json?.watchlists ?? json ?? [];
     if (!Array.isArray(lists)) return [];
-    return lists.flatMap((w: Record<string, unknown>) => {
+    const result = lists.flatMap((w: Record<string, unknown>) => {
       const raw = w.WatchlistId ?? w.watchlistId ?? w.id;
       const id = raw != null ? String(raw) : undefined;
       const name = (w.Name ?? w.name ?? w.displayName) as string | undefined;
@@ -433,6 +487,8 @@ export async function fetchWatchlists(keys: ApiKeys): Promise<Watchlist[]> {
       if (instrumentIds.length === 0) return [];
       return [{ id, name, instrumentIds }];
     });
+    if (result.length > 0) watchlistsCache.set(result);
+    return result;
   } catch {
     return [];
   }

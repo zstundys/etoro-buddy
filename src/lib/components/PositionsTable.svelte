@@ -635,11 +635,11 @@
                       >
                         <Money value={pos.amount} />
                         {#if sd.length >= 2}
-                          <span class="hidden sm:inline-block"
+                          <span class="hidden sm:inline-block -my-2"
                             ><Sparkline
                               data={sd}
                               width={64}
-                              height={20}
+                              height={28}
                             /></span
                           >
                         {/if}
@@ -804,8 +804,8 @@
                   <div
                     class="relative flex items-center px-2 col-span-3 justify-center"
                   >
-                    <div class="hidden sm:block">
-                      <Sparkline data={groupSparkline} width={120} height={28} />
+                    <div class="hidden sm:block -my-2">
+                      <Sparkline data={groupSparkline} width={120} height={36} />
                     </div>
                   </div>
                 {:else}

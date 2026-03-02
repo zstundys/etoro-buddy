@@ -38,24 +38,17 @@
 
   const sectorMap = $derived<Map<number, string>>(client.sectorMap);
 
-  let opportunitySource = $state("portfolio");
-
   const opportunityInstruments = $derived<InstrumentSnapshot[]>(
-    opportunitySource === "portfolio"
+    client.opportunitySource === "portfolio"
       ? (portfolio?.positions ?? [])
       : client.watchlistInstruments,
   );
 
   const opportunityCandleMap = $derived<Map<number, Candle[]>>(
-    opportunitySource === "portfolio" ? candleMap : client.watchlistCandles,
+    client.opportunitySource === "portfolio"
+      ? candleMap
+      : client.watchlistCandles,
   );
-
-  function handleSourceChange(source: string) {
-    opportunitySource = source;
-    if (source !== "portfolio") {
-      client.loadWatchlistData(source);
-    }
-  }
 
   $effect(() => {
     if (
@@ -130,9 +123,9 @@
       instruments={opportunityInstruments}
       candleMap={opportunityCandleMap}
       watchlists={client.watchlists}
-      selectedSource={opportunitySource}
+      selectedSource={client.opportunitySource}
       watchlistLoading={client.watchlistLoading}
-      onSourceChange={handleSourceChange}
+      onSourceChange={client.setOpportunitySource}
     />
     <RecentTrades {trades} positions={portfolio.positions} />
     <PositionsTable positions={portfolio.positions} {candleMap} />

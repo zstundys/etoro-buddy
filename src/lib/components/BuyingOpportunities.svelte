@@ -2,6 +2,7 @@
   import type { InstrumentSnapshot, Candle, Watchlist } from "$lib/etoro-api";
   import { percent as pctFmt, pnlSign, normalizeSymbol } from "$lib/format";
   import TickerLink from "./TickerLink.svelte";
+  import Sparkline from "./charts/Sparkline.svelte";
 
   let {
     instruments,
@@ -219,6 +220,39 @@
     { key: "ytd", label: "YTD", field: "changeYTD" },
     { key: "200ma", label: "200D MA", field: "diff200MA" },
   ];
+
+  type SparklineRange = "7d" | "1m" | "3m" | "6m" | "ytd" | "all";
+  const SPARKLINE_RANGES: {
+    value: SparklineRange;
+    label: string;
+    days?: number;
+    ytd?: true;
+  }[] = [
+    { value: "7d", label: "7D", days: 7 },
+    { value: "1m", label: "1M", days: 22 },
+    { value: "3m", label: "3M", days: 66 },
+    { value: "6m", label: "6M", days: 126 },
+    { value: "ytd", label: "YTD", ytd: true },
+    { value: "all", label: "All", days: 250 },
+  ];
+  let sparklineRange = $state<SparklineRange>("1m");
+
+  function sliceCandlesForSparkline(
+    candles: Candle[],
+    range: SparklineRange,
+  ): { date: string; value: number }[] {
+    const def = SPARKLINE_RANGES.find((r) => r.value === range);
+    if (def?.ytd) {
+      const ytdStart = new Date(new Date().getFullYear(), 0, 1).getTime();
+      const filtered = candles.filter(
+        (c) => new Date(c.date).getTime() >= ytdStart,
+      );
+      return filtered.map((c) => ({ date: c.date, value: c.close }));
+    }
+    const days = def?.days ?? 250;
+    const slice = candles.slice(-days);
+    return slice.map((c) => ({ date: c.date, value: c.close }));
+  }
 </script>
 
 {#if instruments.length > 0 || watchlists.length > 0}
@@ -245,7 +279,7 @@
         ></div>
       {/if}
     </div>
-    <p class="mb-4 text-xs text-text-secondary">
+    <p class="mb-2 text-xs text-text-secondary">
       Price change from historical close and distance from 200-day moving
       average. Click column headers to sort.
     </p>
@@ -272,12 +306,36 @@
                 onclick={() => toggleSort("symbol")}
                 class="sticky left-0 z-10 cursor-pointer select-none bg-surface-raised py-2.5 pl-4 pr-3 text-left transition-colors hover:text-text-primary"
               >
-                Instrument
-                {#if sortCol === "symbol"}
-                  <span class="ml-0.5 text-[9px]"
-                    >{sortDir === "asc" ? "▲" : "▼"}</span
-                  >
-                {/if}
+                <div class="flex items-center justify-between gap-2 min-w-0">
+                  <span>
+                    Instrument
+                    {#if sortCol === "symbol"}
+                      <span class="ml-0.5 text-[9px]"
+                        >{sortDir === "asc" ? "▲" : "▼"}</span
+                      >
+                    {/if}
+                  </span>
+                  {#if rows.length > 0}
+                    <div
+                      class="hidden sm:flex flex-wrap gap-1 shrink-0"
+                      onclick={(e) => e.stopPropagation()}
+                      role="group"
+                      aria-label="Sparkline range"
+                    >
+                      {#each SPARKLINE_RANGES as r (r.value)}
+                        <button
+                          type="button"
+                          onclick={() => (sparklineRange = r.value)}
+                          class="rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors touch-manipulation {sparklineRange === r.value
+                            ? "bg-brand text-surface"
+                            : "text-text-secondary hover:bg-surface-overlay hover:text-text-primary"}"
+                        >
+                          {r.label}
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
               </th>
               {#each columns as col (col.key)}
                 <th
@@ -302,31 +360,43 @@
                 <td
                   class="sticky left-0 z-10 bg-surface-raised py-2.5 pl-4 pr-3"
                 >
-                  <div class="flex items-center gap-2">
-                    {#if row.logoUrl}
-                      <img
-                        src={row.logoUrl}
-                        alt={row.symbol}
-                        class="h-5 w-5 shrink-0 rounded-full"
-                      />
-                    {:else}
-                      <div
-                        class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-[8px] font-bold text-text-secondary"
-                      >
-                        {row.symbol.slice(0, 2)}
-                      </div>
-                    {/if}
-                    <div class="leading-tight flex flex-wrap gap-x-1 min-w-0">
-                      <TickerLink
-                        symbol={row.symbol}
-                        class="font-medium text-text-primary"
-                      />
-                      {#if row.displayName}
-                        <span
-                          class="hidden text-text-secondary sm:block text-ellipsis overflow-hidden text-nowrap"
-                          >{row.displayName}</span
+                  <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                      {#if row.logoUrl}
+                        <img
+                          src={row.logoUrl}
+                          alt={row.symbol}
+                          class="h-5 w-5 shrink-0 rounded-full"
+                        />
+                      {:else}
+                        <div
+                          class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-overlay text-[8px] font-bold text-text-secondary"
                         >
+                          {row.symbol.slice(0, 2)}
+                        </div>
                       {/if}
+                      <div class="leading-tight flex flex-wrap gap-x-1 min-w-0">
+                        <TickerLink
+                          symbol={row.symbol}
+                          class="font-medium text-text-primary"
+                        />
+                        {#if row.displayName}
+                          <span
+                            class="hidden text-text-secondary sm:block text-ellipsis overflow-hidden text-nowrap"
+                            >{row.displayName}</span
+                          >
+                        {/if}
+                      </div>
+                    </div>
+                    <div class="ml-auto shrink-0 hidden sm:block -my-2">
+                      <Sparkline
+                        data={sliceCandlesForSparkline(
+                          candleMap.get(row.instrumentId) ?? [],
+                          sparklineRange,
+                        )}
+                        width={80}
+                        height={32}
+                      />
                     </div>
                   </div>
                 </td>
