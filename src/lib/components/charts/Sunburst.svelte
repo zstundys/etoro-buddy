@@ -23,6 +23,7 @@
     name: string;
     isSector: true;
     totalAmount: number;
+    totalMarketValue: number;
     totalPnl: number;
     avgPnlPct: number;
     symbolCount: number;
@@ -32,6 +33,7 @@
     name: string;
     logoUrl?: string;
     totalAmount: number;
+    totalMarketValue: number;
     totalPnl: number;
     avgPnlPct: number;
     children?: NodeData[];
@@ -39,6 +41,7 @@
   interface PosNode {
     name: string;
     amount: number;
+    marketValue: number;
     pnl?: number;
     pnlPercent?: number;
     openDateTime: string;
@@ -58,7 +61,9 @@
   } = $props();
 
   type Mode = "symbol" | "sector";
+  type ValueMode = "invested" | "market";
   let mode = $state<Mode>("symbol");
+  let valueMode = $state<ValueMode>("invested");
   let containerEl: HTMLDivElement | undefined = $state();
   let width = $state(0);
   let focusedName = $state<string | null>(null);
@@ -69,6 +74,7 @@
     y: number;
     symbol: string;
     amount: number;
+    marketValue: number;
     pnl: number | undefined;
     pnlPercent: number | undefined;
     date?: string;
@@ -80,6 +86,7 @@
     y: 0,
     symbol: "",
     amount: 0,
+    marketValue: 0,
     pnl: undefined,
     pnlPercent: undefined,
   });
@@ -120,6 +127,7 @@
     return positions.map((p) => ({
       name: normalizeSymbol(p.symbol ?? `#${p.instrumentId}`),
       amount: p.amount,
+      marketValue: p.amount + (p.pnl ?? 0),
       pnl: p.pnl,
       pnlPercent: p.pnlPercent,
       openDateTime: p.openDateTime,
@@ -131,6 +139,7 @@
     if (!containerEl || width <= 0 || positions.length === 0) return;
     const _cm = colorMap;
     const _mode = mode;
+    const _vm = valueMode;
     const _focus = focusedName;
     const _sectorMap = sectorMap;
 
@@ -158,10 +167,12 @@
         children: [...sectorGroups.entries()].map(([sectorName, syms]) => {
           const totalAmount = syms.reduce((s, g) => s + g.totalAmount, 0);
           const totalPnl = syms.reduce((s, g) => s + g.totalPnl, 0);
+          const totalMarketValue = totalAmount + totalPnl;
           return {
             name: sectorName,
             isSector: true as const,
             totalAmount,
+            totalMarketValue,
             totalPnl,
             avgPnlPct: totalAmount > 0 ? (totalPnl / totalAmount) * 100 : 0,
             symbolCount: syms.length,
@@ -171,6 +182,7 @@
                   name: g.symbol,
                   logoUrl: g.logoUrl,
                   totalAmount: g.totalAmount,
+                  totalMarketValue: g.totalAmount + g.totalPnl,
                   totalPnl: g.totalPnl,
                   avgPnlPct: g.avgPnlPct,
                   children: buildSymbolChildren(g.positions),
@@ -188,6 +200,7 @@
               name: g.symbol,
               logoUrl: g.logoUrl,
               totalAmount: g.totalAmount,
+              totalMarketValue: g.totalAmount + g.totalPnl,
               totalPnl: g.totalPnl,
               avgPnlPct: g.avgPnlPct,
               children: buildSymbolChildren(g.positions),
@@ -198,7 +211,13 @@
 
     const root = d3
       .hierarchy<NodeData>(rootData)
-      .sum((d) => ("amount" in d ? (d as PosNode).amount : 0))
+      .sum((d) =>
+        "amount" in d
+          ? _vm === "market"
+            ? Math.max(0, (d as PosNode).marketValue)
+            : (d as PosNode).amount
+          : 0,
+      )
       .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
 
     d3
@@ -299,6 +318,7 @@
             y: event.clientY,
             symbol: data.name,
             amount: data.totalAmount,
+            marketValue: data.totalMarketValue,
             pnl: data.totalPnl,
             pnlPercent: data.avgPnlPct,
             count: data.symbolCount,
@@ -312,6 +332,7 @@
             y: event.clientY,
             symbol: sd.name,
             amount: sd.totalAmount,
+            marketValue: sd.totalMarketValue,
             pnl: sd.totalPnl,
             pnlPercent: sd.avgPnlPct,
             count: d.children?.length,
@@ -324,6 +345,7 @@
             y: event.clientY,
             symbol: pd.name,
             amount: pd.amount,
+            marketValue: pd.marketValue,
             pnl: pd.pnl,
             pnlPercent: pd.pnlPercent,
             date: pd.openDateTime
@@ -378,7 +400,10 @@
       .text((d) => {
         const span = xScale(d.x1) - xScale(d.x0);
         if (span < 0.15) return "";
-        if ("amount" in d.data) return fmt.format((d.data as PosNode).amount);
+        if ("amount" in d.data) {
+          const pd = d.data as PosNode;
+          return fmt.format(_vm === "market" ? pd.marketValue : pd.amount);
+        }
         return d.data.name;
       });
 
@@ -412,15 +437,25 @@
         .text((d) => {
           const span = xScale(d.x1) - xScale(d.x0);
           if (span < 0.2) return "";
-          if ("amount" in d.data) return fmt.format((d.data as PosNode).amount);
-          if ("totalAmount" in d.data)
-            return fmt.format((d.data as SymbolNode).totalAmount);
+          if ("amount" in d.data) {
+            const pd = d.data as PosNode;
+            return fmt.format(_vm === "market" ? pd.marketValue : pd.amount);
+          }
+          if ("totalAmount" in d.data) {
+            const sd = d.data as SymbolNode;
+            return fmt.format(
+              _vm === "market" ? sd.totalMarketValue : sd.totalAmount,
+            );
+          }
           return d.data.name;
         });
     }
 
-    // Center label
     const totalInvested = positions.reduce((s, p) => s + p.amount, 0);
+    const totalMarket = positions.reduce(
+      (s, p) => s + p.amount + (p.pnl ?? 0),
+      0,
+    );
     const centerG = g.append("g").attr("class", "center");
 
     const parentOfFocus = focusNode?.parent;
@@ -440,9 +475,13 @@
     if (focusNode) {
       const data = focusNode.data;
       const focusAmount = isSectorNode(data)
-        ? data.totalAmount
+        ? _vm === "market"
+          ? data.totalMarketValue
+          : data.totalAmount
         : "totalAmount" in data
-          ? (data as SymbolNode).totalAmount
+          ? _vm === "market"
+            ? (data as SymbolNode).totalMarketValue
+            : (data as SymbolNode).totalAmount
           : 0;
 
       centerG
@@ -476,7 +515,7 @@
         .attr("dy", "-0.3em")
         .attr("fill", COLORS.textSecondary)
         .attr("font-size", 11)
-        .text("Total");
+        .text(_vm === "market" ? "Market Value" : "Invested");
       centerG
         .append("text")
         .attr("text-anchor", "middle")
@@ -484,38 +523,66 @@
         .attr("fill", COLORS.textPrimary)
         .attr("font-size", 13)
         .attr("font-weight", 600)
-        .text(fmt.format(totalInvested));
+        .text(
+          fmt.format(_vm === "market" ? totalMarket : totalInvested),
+        );
     }
   });
 </script>
 
 <div class="flex flex-col items-center gap-3">
-  {#if hasSectors}
+  <div class="flex flex-wrap items-center justify-center gap-2">
+    {#if hasSectors}
+      <div
+        class="inline-flex rounded-lg border border-border bg-surface p-0.5 text-xs"
+      >
+        <button
+          type="button"
+          class="rounded-md px-3 py-1 font-medium transition-colors {mode ===
+          'symbol'
+            ? 'bg-surface-raised text-text-primary shadow-sm'
+            : 'text-text-secondary hover:text-text-primary'}"
+          onclick={() => setMode("symbol")}
+        >
+          By Symbol
+        </button>
+        <button
+          type="button"
+          class="rounded-md px-3 py-1 font-medium transition-colors {mode ===
+          'sector'
+            ? 'bg-surface-raised text-text-primary shadow-sm'
+            : 'text-text-secondary hover:text-text-primary'}"
+          onclick={() => setMode("sector")}
+        >
+          By Sector
+        </button>
+      </div>
+    {/if}
     <div
       class="inline-flex rounded-lg border border-border bg-surface p-0.5 text-xs"
     >
       <button
         type="button"
-        class="rounded-md px-3 py-1 font-medium transition-colors {mode ===
-        'symbol'
+        class="rounded-md px-3 py-1 font-medium transition-colors {valueMode ===
+        'invested'
           ? 'bg-surface-raised text-text-primary shadow-sm'
           : 'text-text-secondary hover:text-text-primary'}"
-        onclick={() => setMode("symbol")}
+        onclick={() => (valueMode = "invested")}
       >
-        By Symbol
+        Invested
       </button>
       <button
         type="button"
-        class="rounded-md px-3 py-1 font-medium transition-colors {mode ===
-        'sector'
+        class="rounded-md px-3 py-1 font-medium transition-colors {valueMode ===
+        'market'
           ? 'bg-surface-raised text-text-primary shadow-sm'
           : 'text-text-secondary hover:text-text-primary'}"
-        onclick={() => setMode("sector")}
+        onclick={() => (valueMode = "market")}
       >
-        By Sector
+        Market Value
       </button>
     </div>
-  {/if}
+  </div>
 
   <div
     class="relative flex w-full justify-center"
@@ -546,6 +613,9 @@
         {/if}
         <div class="mt-0.5 text-text-secondary">
           Invested: <Money value={tooltip.amount} />
+        </div>
+        <div class="mt-0.5 text-text-secondary">
+          Market: <Money value={tooltip.marketValue} />
         </div>
         {#if tooltip.pnl !== undefined}
           <div class="mt-0.5 {tooltip.pnl >= 0 ? 'text-gain' : 'text-loss'}">
