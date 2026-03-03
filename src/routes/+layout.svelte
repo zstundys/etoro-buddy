@@ -4,6 +4,7 @@
   import { base } from "$app/paths";
   import { onMount } from "svelte";
   import { initPrivacy, togglePrivacy } from "$lib/privacy-mode";
+  import { exportLocalStorage, importLocalStorage } from "$lib/data-transfer";
 
   let { children } = $props();
 
@@ -15,6 +16,45 @@
 
   function handleToggle() {
     privacyOn = togglePrivacy();
+  }
+
+  let dialogEl: HTMLDialogElement | undefined = $state();
+  let mode = $state<"export" | "import">("export");
+  let textValue = $state("");
+  let statusMsg = $state("");
+
+  function openDialog(m: "export" | "import") {
+    mode = m;
+    statusMsg = "";
+    textValue = m === "export" ? exportLocalStorage() : "";
+    dialogEl?.showModal();
+  }
+
+  function closeDialog() {
+    dialogEl?.close();
+    statusMsg = "";
+  }
+
+  async function copyToClipboard() {
+    try {
+      await navigator.clipboard.writeText(textValue);
+      statusMsg = "Copied to clipboard";
+    } catch {
+      statusMsg = "Copy failed — select all and copy manually";
+    }
+  }
+
+  function handleImport() {
+    try {
+      const { imported } = importLocalStorage(textValue);
+      statusMsg = `Imported ${imported} key${imported === 1 ? "" : "s"}. Reload to apply.`;
+    } catch (e) {
+      statusMsg = `Error: ${e instanceof Error ? e.message : "Invalid data"}`;
+    }
+  }
+
+  function handleBackdropClick(e: MouseEvent) {
+    if (e.target === dialogEl) closeDialog();
   }
 </script>
 
@@ -67,6 +107,25 @@
           </div>
         </div>
         <div class="flex items-center gap-2">
+          <button
+            onclick={() => openDialog("export")}
+            class="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-surface-overlay hover:text-text-primary"
+            title="Export / Import data"
+          >
+            <svg
+              class="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </button>
           <button
             onclick={handleToggle}
             class="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-surface-overlay hover:text-text-primary"
@@ -126,3 +185,123 @@
     {@render children()}
   </div>
 </div>
+
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<dialog
+  bind:this={dialogEl}
+  class="m-auto w-full max-w-lg rounded-xl border border-border bg-surface p-0 text-text-primary shadow-2xl backdrop:bg-black/60"
+  onclick={handleBackdropClick}
+>
+  <div class="flex flex-col gap-4 p-5">
+    <div class="flex items-center justify-between">
+      <div
+        class="inline-flex rounded-lg border border-border bg-surface-raised p-0.5 text-xs"
+      >
+        <button
+          type="button"
+          class="rounded-md px-3 py-1 font-medium transition-colors {mode ===
+          'export'
+            ? 'bg-surface-overlay text-text-primary shadow-sm'
+            : 'text-text-secondary hover:text-text-primary'}"
+          onclick={() => {
+            mode = "export";
+            textValue = exportLocalStorage();
+            statusMsg = "";
+          }}
+        >
+          Export
+        </button>
+        <button
+          type="button"
+          class="rounded-md px-3 py-1 font-medium transition-colors {mode ===
+          'import'
+            ? 'bg-surface-overlay text-text-primary shadow-sm'
+            : 'text-text-secondary hover:text-text-primary'}"
+          onclick={() => {
+            mode = "import";
+            textValue = "";
+            statusMsg = "";
+          }}
+        >
+          Import
+        </button>
+      </div>
+      <button
+        type="button"
+        onclick={closeDialog}
+        class="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-surface-overlay hover:text-text-primary"
+        title="Close"
+      >
+        <svg
+          class="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+
+    {#if mode === "export"}
+      <p class="text-xs text-text-secondary">
+        Copy this data and paste it into Import on another browser or device.
+        API keys are never included.
+      </p>
+      <textarea
+        readonly
+        class="h-64 w-full resize-y rounded-lg border border-border bg-surface-overlay p-3 font-mono text-xs text-text-primary outline-none focus:border-brand"
+        value={textValue}
+        onclick={(e) => {
+          const el = e.currentTarget;
+          if (el instanceof HTMLTextAreaElement) el.select();
+        }}
+      ></textarea>
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          onclick={copyToClipboard}
+          class="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-surface transition-opacity hover:opacity-90"
+        >
+          Copy to clipboard
+        </button>
+        {#if statusMsg}
+          <span class="text-xs text-text-secondary">{statusMsg}</span>
+        {/if}
+      </div>
+    {:else}
+      <p class="text-xs text-text-secondary">
+        Paste previously exported data below and click Import. Existing keys
+        will be overwritten. API keys are never imported.
+      </p>
+      <textarea
+        class="h-64 w-full resize-y rounded-lg border border-border bg-surface-overlay p-3 font-mono text-xs text-text-primary outline-none placeholder:text-text-secondary/50 focus:border-brand"
+        placeholder='Paste exported JSON here...'
+        bind:value={textValue}
+      ></textarea>
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          onclick={handleImport}
+          disabled={!textValue.trim()}
+          class="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          Import
+        </button>
+        {#if statusMsg}
+          <span
+            class="text-xs {statusMsg.startsWith('Error')
+              ? 'text-loss'
+              : 'text-text-secondary'}"
+          >
+            {statusMsg}
+          </span>
+        {/if}
+      </div>
+    {/if}
+  </div>
+</dialog>
