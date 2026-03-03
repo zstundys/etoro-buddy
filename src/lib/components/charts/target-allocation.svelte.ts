@@ -109,6 +109,14 @@ export function createBucketStore(getPositions: () => EnrichedPosition[]) {
     return total;
   });
 
+  const allSymbols = $derived(
+    symbolGroups.map((g) => ({
+      symbol: g.symbol,
+      instrumentId: g.positions[0]?.instrumentId ?? 0,
+      marketValue: (symbolMarketValues.get(g.symbol) ?? 0),
+    })),
+  );
+
   const computed: BucketComputed[] = $derived.by(() => {
     return buckets.map((b) => {
       let mv = 0;
@@ -210,6 +218,9 @@ export function createBucketStore(getPositions: () => EnrichedPosition[]) {
     },
     get unassignedCount() {
       return unassignedCount;
+    },
+    get allSymbols() {
+      return allSymbols;
     },
     addBucket,
     removeBucket,

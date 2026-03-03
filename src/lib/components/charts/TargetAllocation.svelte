@@ -35,10 +35,10 @@
   }
 </script>
 
-<div>
+<div class="flex flex-col gap-5">
   {#if store.buckets.length === 0 && !editing}
     <div
-      class="flex flex-col items-center justify-center gap-3 py-12 text-center"
+      class="flex flex-col items-center justify-center gap-3 py-8 text-center"
     >
       <p class="text-sm text-text-secondary">
         Define target allocation buckets to compare against your current
@@ -163,14 +163,6 @@
                 {/if}
               {/each}
             </div>
-
-            <CashAllocationPreview
-              buckets={store.computed}
-              totalTargetPercent={store.totalTargetPercent}
-              totalAssignedMarketValue={store.totalAssignedMarketValue}
-              {credit}
-              {candleMap}
-            />
           </div>
         </div>
       {/if}
@@ -194,4 +186,13 @@
       {/if}
     </div>
   {/if}
+
+  <CashAllocationPreview
+    buckets={store.computed}
+    totalTargetPercent={store.totalTargetPercent}
+    totalAssignedMarketValue={store.totalAssignedMarketValue}
+    allSymbols={store.allSymbols}
+    {credit}
+    {candleMap}
+  />
 </div>

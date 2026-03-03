@@ -160,7 +160,7 @@
       <ChartCard
         storageKey="chart-target-allocation"
         title="Target Allocation"
-        description="Group your holdings into named buckets with target percentage weights and compare them against your actual allocation. The donut chart shows targets (faded) vs actuals (filled arcs) — taller means overweight, shorter means underweight. Expand any bucket to see individual holdings and their weight. Use the Cash Allocation Preview to simulate deploying cash: choose Rebalance mode to prioritise underweight buckets, or By Target % to split evenly by target weights. If market signals are available, you can sort and weight by opportunity metrics like distance from 200-day MA. Exclude individual instruments to redistribute their share across the rest."
+        description="Define target allocation buckets and compare them against your actual holdings. Taller arcs are overweight, shorter are underweight. Use Cash Allocation Preview to simulate deploying cash via rebalancing, target weights, or opportunity-based distribution."
       >
         {#snippet actions()}
           <button
