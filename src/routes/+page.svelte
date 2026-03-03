@@ -84,7 +84,7 @@
   }
 </script>
 
-<div class="mb-6">
+<div class="mb-6 sticky top-2 z-100">
   <ApiKeySetup
     onsubmit={handleKeysSubmit}
     onclear={handleKeysClear}
