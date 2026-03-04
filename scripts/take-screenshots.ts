@@ -274,9 +274,18 @@ async function main() {
       .locator("..")
       .first();
 
-    const charts: [string, string][] = [
-      ["Portfolio Value Over Time", "chart-portfolio-value.png"],
-      ["Target Allocation", "chart-target-allocation.png"],
+    await screenshotChart(page, chartsSection, "Portfolio Value Over Time", "chart-portfolio-value.png");
+
+    // Hide cash allocation section for a cleaner Target Allocation screenshot
+    if (await cashAllocation.isVisible()) {
+      await cashAllocation.evaluate((el) => ((el as HTMLElement).style.display = "none"));
+    }
+    await screenshotChart(page, chartsSection, "Target Allocation", "chart-target-allocation.png");
+    if (await cashAllocation.count()) {
+      await cashAllocation.evaluate((el) => ((el as HTMLElement).style.display = ""));
+    }
+
+    const remainingCharts: [string, string][] = [
       ["Portfolio Allocation", "chart-allocation.png"],
       ["Timing vs Performance", "chart-bubble-scatter.png"],
       ["Capital Over Time", "chart-streamgraph.png"],
@@ -290,7 +299,7 @@ async function main() {
       ["Fees & Dividends", "chart-fees-waterfall.png"],
       ["Monthly Capital Flow", "chart-chord.png"],
     ];
-    for (const [title, filename] of charts) {
+    for (const [title, filename] of remainingCharts) {
       await screenshotChart(page, chartsSection, title, filename);
     }
 
