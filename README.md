@@ -37,6 +37,12 @@ A portfolio dashboard for [eToro](https://www.etoro.com) that visualizes your op
 
     ![Portfolio value stacked area chart](screenshots/chart-portfolio-value.png)
 
+  - Target Allocation (donut with cash allocation preview)
+
+    ![Target allocation donut chart](screenshots/chart-target-allocation.png)
+
+    ![Cash allocation preview](screenshots/chart-cash-allocation.png)
+
   - Portfolio Allocation (treemap)
 
     ![Portfolio allocation treemap](screenshots/chart-allocation.png)
@@ -125,11 +131,32 @@ The server loads data on page render. You can still override with client-side ke
 
 ## Screenshots
 
-Regenerate the README screenshots with Playwright. Requires a running dev server with API keys configured in `.env`:
+Regenerate the README screenshots with Playwright. Requires a running dev server.
+
+**Option A — From exported snapshot (no API calls):**
+
+Use the app's Import/Export feature to save your data as JSON, then pass it as an argument or env var:
+
+```sh
+bun dev &
+bun run screenshots -- snapshot.json
+# or: SCREENSHOT_DATA=snapshot.json bun run screenshots
+```
+
+**Option B — Interactive prompt:**
+
+Run the script and enter the path to your exported JSON file when prompted:
 
 ```sh
 bun dev &
 bun run screenshots
+```
+
+**Option C — Live API keys:**
+
+```sh
+bun dev &
+ETORO_API_KEY=... ETORO_USER_KEY=... bun run screenshots
 ```
 
 The built-in privacy mode is enabled before capture to blur sensitive values. Output goes to `screenshots/`.

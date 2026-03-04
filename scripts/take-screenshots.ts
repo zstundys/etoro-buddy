@@ -1,10 +1,42 @@
 import { chromium, type Page } from "playwright";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
+import { createInterface } from "node:readline";
 
 const BASE_URL = process.env.SCREENSHOT_URL ?? "http://localhost:5173";
 const OUT = join(dirname(Bun.main), "..", "screenshots");
 const VIEWPORT = { width: 1440, height: 900 };
+
+async function loadSnapshotData(): Promise<Record<string, string> | null> {
+  const filePath = process.argv[2] || process.env.SCREENSHOT_DATA;
+  if (filePath) {
+    console.log(`→ Loading snapshot data from ${filePath}...`);
+    const raw = await readFile(filePath, "utf-8");
+    return JSON.parse(raw) as Record<string, string>;
+  }
+  return null;
+}
+
+function promptForSnapshot(): Promise<Record<string, string> | null> {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(
+      "→ Path to exported JSON file (or press Enter to skip and use API keys): ",
+      async (answer) => {
+        rl.close();
+        const trimmed = answer.trim();
+        if (!trimmed) return resolve(null);
+        try {
+          const raw = await readFile(trimmed, "utf-8");
+          resolve(JSON.parse(raw) as Record<string, string>);
+        } catch (e) {
+          console.log(`  ⚠ Could not read ${trimmed}: ${e instanceof Error ? e.message : e}`);
+          resolve(null);
+        }
+      },
+    );
+  });
+}
 
 async function screenshotChart(
   page: Page,
@@ -50,7 +82,14 @@ async function main() {
     await ctx.close();
   }
 
-  // --- Screenshots 2+: loaded dashboard (needs API keys) ---
+  // --- Screenshots 2+: loaded dashboard (needs data) ---
+
+  // Try loading snapshot data to avoid live API calls
+  let snapshotData = await loadSnapshotData();
+  if (!snapshotData) {
+    snapshotData = await promptForSnapshot();
+  }
+
   const ctx = await browser.newContext({
     viewport: VIEWPORT,
     colorScheme: "dark",
@@ -58,29 +97,39 @@ async function main() {
   });
   const page = await ctx.newPage();
 
-  await page.goto(BASE_URL, { waitUntil: "load" });
+  if (snapshotData) {
+    console.log("→ Hydrating localStorage from snapshot data...");
+    await page.goto(BASE_URL, { waitUntil: "load" });
+    await page.evaluate((data) => {
+      for (const [key, value] of Object.entries(data)) {
+        if (typeof value === "string") localStorage.setItem(key, value);
+      }
+    }, snapshotData);
+    await page.reload({ waitUntil: "load" });
+  } else {
+    await page.goto(BASE_URL, { waitUntil: "load" });
 
-  // If the server didn't pre-render data, try injecting API keys from env
-  const hasData = await page
-    .locator("text=Portfolio Value")
-    .isVisible({ timeout: 3_000 })
-    .catch(() => false);
+    const hasData = await page
+      .locator("text=Portfolio Value")
+      .isVisible({ timeout: 3_000 })
+      .catch(() => false);
 
-  if (!hasData) {
-    const apiKey = process.env.ETORO_API_KEY;
-    const userKey = process.env.ETORO_USER_KEY;
-    if (apiKey && userKey) {
-      console.log("→ Injecting API keys from environment...");
-      await page.evaluate(
-        ({ ak, uk }) => {
-          localStorage.setItem(
-            "etoro-api-keys",
-            JSON.stringify({ apiKey: ak, userKey: uk }),
-          );
-        },
-        { ak: apiKey, uk: userKey },
-      );
-      await page.reload({ waitUntil: "load" });
+    if (!hasData) {
+      const apiKey = process.env.ETORO_API_KEY;
+      const userKey = process.env.ETORO_USER_KEY;
+      if (apiKey && userKey) {
+        console.log("→ Injecting API keys from environment...");
+        await page.evaluate(
+          ({ ak, uk }) => {
+            localStorage.setItem(
+              "etoro-api-keys",
+              JSON.stringify({ apiKey: ak, userKey: uk }),
+            );
+          },
+          { ak: apiKey, uk: userKey },
+        );
+        await page.reload({ waitUntil: "load" });
+      }
     }
   }
 
@@ -89,12 +138,15 @@ async function main() {
     await page.waitForSelector("text=Portfolio Value", { timeout: 60_000 });
   } catch {
     console.error(
-      "✗ Timed out waiting for data. Ensure the dev server is running and API keys are configured:",
+      "✗ Timed out waiting for data. Ensure the dev server is running and data is available:",
     );
-    console.error("    Option A: Set ETORO_API_KEY and ETORO_USER_KEY in .env");
     console.error(
-      "    Option B: export ETORO_API_KEY=... ETORO_USER_KEY=... before running",
+      "    Option A: SCREENSHOT_DATA=snapshot.json bun run screenshots  (exported JSON from Import/Export)",
     );
+    console.error(
+      "    Option B: Paste exported JSON when prompted (no env vars needed)",
+    );
+    console.error("    Option C: Set ETORO_API_KEY and ETORO_USER_KEY in .env");
     await browser.close();
     process.exit(1);
   }
@@ -109,8 +161,15 @@ async function main() {
   }
   await page.waitForTimeout(5_000);
 
+  // Pre-fill cash allocation input so all screenshots reflect it
+  const cashInput = page.locator('input[type="number"]').first();
+  if (await cashInput.isVisible().catch(() => false)) {
+    await cashInput.fill("1000");
+    await page.waitForTimeout(500);
+  }
+
   console.log("→ Enabling privacy mode...");
-  const privacyBtn = page.locator('button[aria-label="Hide values"]');
+  const privacyBtn = page.locator('button[title="Hide values"]');
   if (await privacyBtn.isVisible()) {
     await privacyBtn.click();
     await page.waitForTimeout(500);
@@ -128,6 +187,12 @@ async function main() {
   // Full page
   await page.screenshot({ path: join(OUT, "full-page.png"), fullPage: true });
   console.log("  ✓ full-page.png");
+
+  // Hide sticky API key bar so it doesn't overlay section screenshots
+  await page.evaluate(() => {
+    const sticky = document.querySelector<HTMLElement>(".sticky.top-2");
+    if (sticky) sticky.style.display = "none";
+  });
 
   // Portfolio summary cards
   const summaryCards = page.locator(".mb-8.grid.grid-cols-1").first();
@@ -203,8 +268,15 @@ async function main() {
   // Individual charts — one per ChartCard in ChartsDashboard
   const chartsSection = page.locator("section.mt-10").first();
   if (await chartsSection.isVisible()) {
+    const cashAllocation = chartsSection
+      .locator("h4", { hasText: "Cash Allocation" })
+      .locator("..")
+      .locator("..")
+      .first();
+
     const charts: [string, string][] = [
       ["Portfolio Value Over Time", "chart-portfolio-value.png"],
+      ["Target Allocation", "chart-target-allocation.png"],
       ["Portfolio Allocation", "chart-allocation.png"],
       ["Timing vs Performance", "chart-bubble-scatter.png"],
       ["Capital Over Time", "chart-streamgraph.png"],
@@ -220,6 +292,16 @@ async function main() {
     ];
     for (const [title, filename] of charts) {
       await screenshotChart(page, chartsSection, title, filename);
+    }
+
+    // Cash Allocation Preview (separate zoomed-in screenshot)
+    if (await cashAllocation.isVisible()) {
+      await cashAllocation.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(300);
+      await cashAllocation.screenshot({
+        path: join(OUT, "chart-cash-allocation.png"),
+      });
+      console.log("  ✓ chart-cash-allocation.png");
     }
   }
 

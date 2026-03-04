@@ -25,13 +25,13 @@
   } = $props();
 
   const store = createBucketStore(() => positions);
-  let expandedBuckets = $state(new Set<string>());
+  let collapsedBuckets = $state(new Set<string>());
 
   function toggleBucket(id: string) {
-    const next = new Set(expandedBuckets);
+    const next = new Set(collapsedBuckets);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    expandedBuckets = next;
+    collapsedBuckets = next;
   }
 </script>
 
@@ -101,7 +101,7 @@
             <div class="flex flex-col gap-1">
               {#each store.computed.filter((b) => b.targetPercent > 0) as bucket, i (bucket.id)}
                 {@const hasSymbols = bucket.symbolDetails.length > 0}
-                {@const isExpanded = expandedBuckets.has(bucket.id)}
+                {@const isExpanded = !collapsedBuckets.has(bucket.id)}
                 <button
                   type="button"
                   class="flex w-full items-center gap-2 rounded px-1 py-0.5 text-xs transition-colors hover:bg-surface-overlay/40 {hasSymbols ? 'cursor-pointer' : 'cursor-default'}"
