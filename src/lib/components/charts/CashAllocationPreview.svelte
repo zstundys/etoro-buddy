@@ -8,10 +8,14 @@
     type WithinBucketStrategy,
     type PortfolioSymbol,
     type FlatRow,
+    type ModePreview,
+    type Recommendation,
     FEE_PER_ORDER,
     MIN_ORDER_AMOUNT,
     buildMetricsMap,
     computeAllocations,
+    computeAllModes,
+    computeRecommendation,
     buildFlatList,
   } from "./cash-allocation.ts";
 
@@ -124,37 +128,33 @@
     }),
   );
 
-  const sortSummary = $derived.by(() => {
-    const parts: string[] = [];
-    if (allocationMode === "equal") {
-      parts.push(
-        "Equal split — cash divided equally across all included holdings",
-      );
-    } else if (allocationMode === "opportunity") {
-      parts.push(
-        `Cash weighted by ${METRIC_LABELS[selectedMetric]} — symbols further below get more`,
-      );
-      parts.push(
-        `Sorted by ${METRIC_LABELS[selectedMetric]} — lowest (most negative) values ranked first`,
-      );
-    } else if (allocationMode === "rebalance") {
-      parts.push(
-        "Rebalance — underweight buckets receive proportionally to shortfall",
-      );
-    } else {
-      parts.push("By target % — cash divided by bucket target weights");
-    }
-    if (
-      preferUndervalued &&
-      allocationMode !== "opportunity" &&
-      allocationMode !== "equal"
-    ) {
-      parts.push(
-        "Within each bucket, undervalued symbols (by signal) receive more",
-      );
-    }
-    return parts;
-  });
+  const modePreviews = $derived<ModePreview[]>(
+    computeAllModes({
+      buckets,
+      totalTargetPercent,
+      totalAssignedMarketValue,
+      cashAmount,
+      selectedMetric,
+      excludedSymbols,
+      forcedSymbols,
+      metricsMap,
+      allSymbols,
+      withinBucketStrategy: withinStrategy,
+      hasBucketTargets,
+      hasMetrics,
+    }),
+  );
+
+  const recommendation = $derived<Recommendation | null>(
+    computeRecommendation({
+      previews: modePreviews,
+      buckets,
+      totalAssignedMarketValue,
+      cashAmount,
+      metricsMap,
+      selectedMetric,
+    }),
+  );
 
   type Tier = "active" | "forced" | "zero" | "excluded";
   function rowTier(row: FlatRow): Tier {
@@ -162,6 +162,46 @@
     if (row.allocation < 0.01 && !row.forced) return "zero";
     if (row.forced) return "forced";
     return "active";
+  }
+
+  type DisplayTier = "priority" | "secondary" | "belowMin" | "excluded";
+  function displayTier(row: FlatRow): DisplayTier {
+    if (row.excluded) return "excluded";
+    if (row.belowMinimum || row.allocation < MIN_ORDER_AMOUNT)
+      return "belowMin";
+    if (row.allocation >= 50) return "priority";
+    return "secondary";
+  }
+
+  const tieredRows = $derived.by(() => {
+    const priority: FlatRow[] = [];
+    const secondary: FlatRow[] = [];
+    const belowMin: FlatRow[] = [];
+    const excluded: FlatRow[] = [];
+    for (const row of flatList) {
+      const t = displayTier(row);
+      if (t === "priority") priority.push(row);
+      else if (t === "secondary") secondary.push(row);
+      else if (t === "belowMin") belowMin.push(row);
+      else excluded.push(row);
+    }
+    return { priority, secondary, belowMin, excluded };
+  });
+
+  let showBelowMin = $state(false);
+  let showExcluded = $state(false);
+  let copiedSymbol = $state<string | null>(null);
+
+  async function copyAmount(symbol: string, amount: number) {
+    try {
+      await navigator.clipboard.writeText(amount.toFixed(2));
+      copiedSymbol = symbol;
+      setTimeout(() => {
+        if (copiedSymbol === symbol) copiedSymbol = null;
+      }, 1200);
+    } catch {
+      /* clipboard not available */
+    }
   }
 
   const INFO_TEXT =
@@ -175,6 +215,209 @@
 
   let showInfo = $state(false);
 </script>
+
+{#snippet rowGrid(
+  rows: FlatRow[],
+  showRank: boolean,
+  showBucket: boolean,
+  showSignal: boolean,
+  dimmed?: boolean,
+)}
+  {#each rows as row (row.symbol)}
+    {@const mv = row.excluded ? undefined : row.metrics?.[selectedMetric]}
+    {@const tier = rowTier(row)}
+    {@const zeroNonExcluded = !row.excluded && row.allocation < 0.01}
+
+    <!-- checkbox -->
+    <button
+      type="button"
+      title={zeroNonExcluded
+        ? `Force-include ${row.symbol}`
+        : row.excluded
+          ? `Include ${row.symbol}`
+          : row.forced
+            ? `Remove forced inclusion for ${row.symbol}`
+            : `Exclude ${row.symbol}`}
+      class="flex h-3.5 w-3.5 items-center justify-center rounded border transition-colors
+        {dimmed || tier === 'excluded'
+        ? 'opacity-40'
+        : tier === 'zero'
+          ? 'opacity-50'
+          : ''}
+        {row.excluded
+        ? 'border-border bg-surface-raised'
+        : zeroNonExcluded
+          ? 'border-border/50 bg-surface-raised/50 hover:border-amber-500/50 cursor-pointer'
+          : row.forced
+            ? 'border-amber-500 bg-amber-500/15'
+            : 'border-brand bg-brand/15'}"
+      onclick={() =>
+        zeroNonExcluded
+          ? toggleForced(row.symbol)
+          : row.forced
+            ? toggleForced(row.symbol)
+            : toggleSymbol(row.symbol)}
+    >
+      {#if (!row.excluded && !zeroNonExcluded) || row.forced}
+        <svg
+          class="h-2.5 w-2.5 {row.forced ? 'text-amber-500' : 'text-brand'}"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      {/if}
+    </button>
+
+    <!-- rank -->
+    {#if showRank}
+      <span
+        class="text-center {dimmed || tier === 'excluded'
+          ? 'opacity-40'
+          : tier === 'zero'
+            ? 'opacity-50'
+            : ''}"
+      >
+        {#if row.rank > 0}
+          <span
+            class="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-surface-raised text-[9px] font-bold tabular-nums text-text-secondary"
+          >
+            {row.rank}
+          </span>
+        {/if}
+      </span>
+    {/if}
+
+    <!-- symbol -->
+    <span
+      class="truncate font-medium text-text-primary {dimmed ||
+      tier === 'excluded'
+        ? 'opacity-40 line-through'
+        : tier === 'zero'
+          ? 'opacity-50'
+          : ''}"
+    >
+      {row.symbol}
+    </span>
+
+    <!-- current % of portfolio -->
+    <span
+      class="text-right tabular-nums text-[10px] text-text-secondary/70 {dimmed ||
+      tier === 'excluded'
+        ? 'opacity-40'
+        : tier === 'zero'
+          ? 'opacity-50'
+          : ''}"
+      title="{pctFmt.format(
+        totalPortfolioValue > 0
+          ? (row.currentValue / totalPortfolioValue) * 100
+          : 0,
+      )}% of portfolio"
+    >
+      {#if totalPortfolioValue > 0}
+        {pctFmt.format((row.currentValue / totalPortfolioValue) * 100)}%
+      {/if}
+    </span>
+
+    <!-- bucket swatch + name -->
+    {#if showBucket}
+      <span
+        class="inline-block h-2 w-2 rounded-sm {dimmed || tier === 'excluded'
+          ? 'opacity-40'
+          : tier === 'zero'
+            ? 'opacity-50'
+            : ''}"
+        style="background:{row.bucketColor || 'transparent'}"
+        title={row.bucketName}
+      ></span>
+      <span
+        class="truncate text-[10px] text-text-secondary {dimmed ||
+        tier === 'excluded'
+          ? 'opacity-40'
+          : tier === 'zero'
+            ? 'opacity-50'
+            : ''}"
+      >
+        {row.bucketName}
+      </span>
+    {/if}
+
+    <!-- signal metric -->
+    {#if showSignal}
+      <span
+        class="text-right tabular-nums text-[10px] {dimmed ||
+        tier === 'excluded'
+          ? 'opacity-40'
+          : tier === 'zero'
+            ? 'opacity-50'
+            : ''}"
+        title={mv != null
+          ? `${METRIC_LABELS[selectedMetric]}: ${pctFmt.format(mv)}%${row.rank > 0 ? ` (rank #${row.rank})` : ""}`
+          : ""}
+      >
+        {#if mv != null}
+          <span class={mv < 0 ? "text-gain" : "text-loss"}>
+            {pctFmt.format(mv)}%
+          </span>
+          <span class="{mv < 0 ? 'text-gain' : 'text-loss'} opacity-50"
+            >{METRIC_LABELS[selectedMetric]}</span
+          >
+        {/if}
+      </span>
+    {/if}
+
+    <!-- reason -->
+    <span
+      class="truncate px-1 text-[10px] {dimmed || tier === 'excluded'
+        ? 'opacity-40'
+        : tier === 'zero'
+          ? 'opacity-50'
+          : ''}
+      {row.belowMinimum
+        ? 'text-amber-500'
+        : row.forced
+          ? 'text-amber-500/80'
+          : 'text-text-secondary'}"
+      title={row.reason ?? ""}
+    >
+      {#if row.reason && !row.excluded}
+        {row.reason}
+      {/if}
+    </span>
+
+    <!-- allocation amount (click to copy) -->
+    <button
+      type="button"
+      class="text-right tabular-nums font-medium transition-colors cursor-pointer
+        {dimmed || tier === 'excluded'
+        ? 'opacity-40'
+        : tier === 'zero'
+          ? 'opacity-50'
+          : ''}
+        {copiedSymbol === row.symbol
+        ? 'text-brand'
+        : row.belowMinimum
+          ? 'text-amber-500 hover:text-amber-400'
+          : row.forced
+            ? 'text-amber-500 hover:text-amber-400'
+            : row.excluded
+              ? 'text-text-secondary'
+              : 'text-text-primary hover:text-brand'}"
+      title="Click to copy amount"
+      onclick={() => copyAmount(row.symbol, row.allocation)}
+    >
+      {#if copiedSymbol === row.symbol}
+        Copied!
+      {:else}
+        {fmt.format(row.allocation)}
+      {/if}
+    </button>
+  {/each}
+{/snippet}
 
 <div
   class="flex flex-col gap-3 rounded-lg border border-border bg-surface-overlay/20 p-3"
@@ -215,6 +458,8 @@
       {INFO_TEXT}
     </p>
   {/if}
+
+  <!-- Cash input -->
   <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
     <label class="flex items-center gap-2 text-xs text-text-secondary">
       Cash to deploy
@@ -232,58 +477,7 @@
         />
       </div>
     </label>
-    <div
-      class="inline-flex rounded-lg border border-border bg-surface p-0.5 text-xs"
-    >
-      {#if hasBucketTargets}
-        <button
-          type="button"
-          class="rounded-md px-3 py-1 font-medium transition-colors {allocationMode ===
-          'rebalance'
-            ? 'bg-surface-raised text-text-primary shadow-sm'
-            : 'text-text-secondary hover:text-text-primary'}"
-          onclick={() => (allocationMode = "rebalance")}
-        >
-          Rebalance
-        </button>
-        <button
-          type="button"
-          class="rounded-md px-3 py-1 font-medium transition-colors {allocationMode ===
-          'target'
-            ? 'bg-surface-raised text-text-primary shadow-sm'
-            : 'text-text-secondary hover:text-text-primary'}"
-          onclick={() => (allocationMode = "target")}
-        >
-          By target %
-        </button>
-      {/if}
-      {#if hasMetrics}
-        <button
-          type="button"
-          class="rounded-md px-3 py-1 font-medium transition-colors {allocationMode ===
-          'opportunity'
-            ? 'bg-surface-raised text-text-primary shadow-sm'
-            : 'text-text-secondary hover:text-text-primary'}"
-          onclick={() => (allocationMode = "opportunity")}
-        >
-          By opportunity
-        </button>
-      {/if}
-      <button
-        type="button"
-        class="rounded-md px-3 py-1 font-medium transition-colors {allocationMode ===
-        'equal'
-          ? 'bg-surface-raised text-text-primary shadow-sm'
-          : 'text-text-secondary hover:text-text-primary'}"
-        onclick={() => (allocationMode = "equal")}
-      >
-        Equal split
-      </button>
-    </div>
-  </div>
-
-  {#if hasMetrics}
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    {#if hasMetrics}
       <label class="flex items-center gap-2 text-xs text-text-secondary">
         Signal
         <select
@@ -305,9 +499,122 @@
           Prefer undervalued
         </label>
       {/if}
+    {/if}
+  </div>
+
+  <!-- Recommendation banner -->
+  {#if recommendation && cashAmount > 0}
+    <button
+      type="button"
+      class="flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 text-left transition-colors
+        {allocationMode === recommendation.mode
+        ? 'border-brand/40 bg-brand/10'
+        : 'border-border/60 bg-surface-overlay/40 hover:border-brand/30 hover:bg-brand/5'}"
+      onclick={() => (allocationMode = recommendation.mode)}
+    >
+      <div class="flex items-center gap-2">
+        <svg
+          class="h-3.5 w-3.5 shrink-0 text-brand"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"
+          />
+        </svg>
+        <span class="text-xs font-semibold text-text-primary">
+          Suggested: {recommendation.label}
+        </span>
+        {#if allocationMode !== recommendation.mode}
+          <span class="ml-auto text-[10px] text-brand">Click to apply</span>
+        {/if}
+      </div>
+      <p class="text-[11px] leading-relaxed text-text-secondary">
+        {recommendation.summary}.
+        {#if recommendation.topSymbols.length > 0}
+          Top: {recommendation.topSymbols
+            .map((s) => `${s.symbol} (${fmt.format(s.allocation)})`)
+            .join(", ")}.
+        {/if}
+      </p>
+    </button>
+  {/if}
+
+  <!-- Side-by-side mode comparison cards -->
+  {#if modePreviews.length > 1 && cashAmount > 0}
+    <div
+      class="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:overflow-visible sm:px-0 sm:pb-0"
+      style:grid-template-columns="repeat({modePreviews.length}, 1fr)"
+    >
+      {#each modePreviews as preview (preview.mode)}
+        {@const isActive = allocationMode === preview.mode}
+        {@const topAllocs = preview.topSymbols}
+        {@const maxAlloc = topAllocs.length > 0 ? topAllocs[0].allocation : 0}
+        <button
+          type="button"
+          class="flex min-w-56 flex-1 flex-col gap-1.5 rounded-lg border p-2 text-left transition-all sm:min-w-0
+            {isActive
+            ? 'border-brand/50 bg-brand/10 shadow-sm'
+            : 'border-border/40 bg-surface-overlay/20 hover:border-border hover:bg-surface-overlay/40'}"
+          onclick={() => (allocationMode = preview.mode)}
+        >
+          <span
+            class="text-[10px] font-semibold uppercase tracking-wider {isActive
+              ? 'text-brand'
+              : 'text-text-secondary'}"
+          >
+            {preview.label}
+          </span>
+          <!-- Mini horizontal bars -->
+          <div class="flex flex-col gap-0.5">
+            {#each topAllocs as sym (sym.symbol)}
+              <div class="flex items-center gap-1.5">
+                <span
+                  class="w-10 truncate text-[9px] tabular-nums text-text-secondary"
+                  >{sym.symbol}</span
+                >
+                <div
+                  class="h-1.5 flex-1 rounded-full bg-surface-raised overflow-hidden"
+                >
+                  <div
+                    class="h-full rounded-full transition-all {isActive
+                      ? 'bg-brand'
+                      : 'bg-text-secondary/30'}"
+                    style="width:{maxAlloc > 0
+                      ? (sym.allocation / maxAlloc) * 100
+                      : 0}%"
+                  ></div>
+                </div>
+                <span
+                  class="w-8 text-right text-[9px] tabular-nums text-text-secondary"
+                >
+                  {fmt.format(sym.allocation)}
+                </span>
+              </div>
+            {/each}
+          </div>
+          <!-- Stats -->
+          <div
+            class="flex items-center gap-2 text-[9px] tabular-nums text-text-secondary/70"
+          >
+            <span>{preview.result.fees.orderCount} orders</span>
+            <span>&middot;</span>
+            <span>{fmt.format(preview.result.fees.totalFees)} fees</span>
+            {#if preview.result.rebalanceProgress != null}
+              <span>&middot;</span>
+              <span>{preview.result.rebalanceProgress}% gap closed</span>
+            {/if}
+          </div>
+        </button>
+      {/each}
     </div>
   {/if}
 
+  <!-- Fee summary -->
   {#if cashAmount > 0 && fees.orderCount > 0}
     <div
       class="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs tabular-nums text-text-secondary"
@@ -330,6 +637,7 @@
     </div>
   {/if}
 
+  <!-- Projections (bucket-based modes) -->
   {#if projections.length > 0 && cashAmount > 0}
     <div class="flex flex-col gap-0.5 text-[10px]">
       {#each projections as p (p.bucketId)}
@@ -363,222 +671,148 @@
     </div>
   {/if}
 
+  <!-- Tiered allocation rows -->
   {#if flatList.length > 0}
-    <div class="flex flex-col gap-0.5 text-[10px] text-text-secondary">
-      {#each sortSummary as line}
-        <span>&bull; {line}</span>
-      {/each}
-    </div>
     {@const showRank = flatList.some((r) => r.rank > 0)}
     {@const showBucket = flatList.some((r) => r.bucketName)}
     {@const showSignal = flatList.some(
       (r) => !r.excluded && r.metrics?.[selectedMetric] != null,
     )}
-    <div
-      class="grid items-center gap-y-0.5 gap-x-3 text-xs"
-      style="grid-template-columns:
-        14px
-        {showRank ? '20px ' : ''}
-        auto
-        2.5rem
-        {showBucket ? '10px minmax(0, 5rem) ' : ''}
-        {showSignal ? '5.5rem ' : ''}
-        1fr
-        max-content;"
-    >
-      {#each flatList as row, i (row.symbol)}
-        {@const mv = row.excluded ? undefined : row.metrics?.[selectedMetric]}
-        {@const tier = rowTier(row)}
-        {@const prevTier = i > 0 ? rowTier(flatList[i - 1]) : tier}
-        {@const zeroNonExcluded = !row.excluded && row.allocation < 0.01}
-        {@const cols =
-          5 + (showRank ? 1 : 0) + (showBucket ? 2 : 0) + (showSignal ? 1 : 0)}
-        {#if tier !== prevTier}
-          {#if (prevTier === "active" || prevTier === "forced") && tier === "zero"}
-            <div
-              class="col-span-full my-1.5 flex items-center gap-2 border-t border-border/50 pt-1.5"
-            >
-              <span
-                class="text-[10px] font-medium uppercase tracking-wider text-text-secondary/60"
-                >Not prioritized</span
-              >
-            </div>
-          {:else}
-            <div class="col-span-full my-1 border-t border-border/50"></div>
-          {/if}
-        {/if}
+    {@const gridCols = `14px ${showRank ? "20px " : ""}auto 2.5rem ${showBucket ? "10px minmax(0,5rem) " : ""}${showSignal ? "5.5rem " : ""}1fr max-content`}
 
-        <!-- checkbox -->
-        <button
-          type="button"
-          title={zeroNonExcluded
-            ? `Force-include ${row.symbol}`
-            : row.excluded
-              ? `Include ${row.symbol}`
-              : row.forced
-                ? `Remove forced inclusion for ${row.symbol}`
-                : `Exclude ${row.symbol}`}
-          class="flex h-3.5 w-3.5 items-center justify-center rounded border transition-colors
-            {tier === 'excluded'
-            ? 'opacity-40'
-            : tier === 'zero'
-              ? 'opacity-50'
-              : ''}
-            {row.excluded
-            ? 'border-border bg-surface-raised'
-            : zeroNonExcluded
-              ? 'border-border/50 bg-surface-raised/50 hover:border-amber-500/50 cursor-pointer'
-              : row.forced
-                ? 'border-amber-500 bg-amber-500/15'
-                : 'border-brand bg-brand/15'}"
-          onclick={() =>
-            zeroNonExcluded
-              ? toggleForced(row.symbol)
-              : row.forced
-                ? toggleForced(row.symbol)
-                : toggleSymbol(row.symbol)}
-        >
-          {#if (!row.excluded && !zeroNonExcluded) || row.forced}
+    <div class="overflow-x-auto">
+      <!-- Priority tier -->
+      {#if tieredRows.priority.length > 0}
+        <div>
+          <span
+            class="sticky left-0 text-[10px] font-medium uppercase tracking-wider text-text-secondary/60"
+          >
+            Priority
+          </span>
+          <div
+            class="grid items-center gap-y-0.5 gap-x-3 text-xs"
+            style="grid-template-columns:{gridCols};"
+          >
+            {@render rowGrid(
+              tieredRows.priority,
+              showRank,
+              showBucket,
+              showSignal,
+            )}
+          </div>
+        </div>
+      {/if}
+
+      <!-- Secondary tier -->
+      {#if tieredRows.secondary.length > 0}
+        <div>
+          {#if tieredRows.priority.length > 0}
+            <div class="sticky left-0 border-t border-border/30 pt-1.5"></div>
+          {/if}
+          <span
+            class="sticky left-0 text-[10px] font-medium uppercase tracking-wider text-text-secondary/60"
+          >
+            Secondary
+          </span>
+          <div
+            class="grid items-center gap-y-0.5 gap-x-3 text-xs"
+            style="grid-template-columns:{gridCols};"
+          >
+            {@render rowGrid(
+              tieredRows.secondary,
+              showRank,
+              showBucket,
+              showSignal,
+            )}
+          </div>
+        </div>
+      {/if}
+
+      <!-- Below minimum tier (collapsed by default) -->
+      {#if tieredRows.belowMin.length > 0}
+        <div>
+          <div class="sticky left-0 border-t border-border/30 pt-1.5"></div>
+          <button
+            type="button"
+            class="sticky left-0 flex w-max items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-amber-500/70 hover:text-amber-500 transition-colors"
+            onclick={() => (showBelowMin = !showBelowMin)}
+          >
             <svg
-              class="h-2.5 w-2.5 {row.forced ? 'text-amber-500' : 'text-brand'}"
+              class="h-2.5 w-2.5 shrink-0 transition-transform duration-150"
+              class:rotate-90={showBelowMin}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              stroke-width="3"
+              stroke-width="2.5"
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <polyline points="20 6 9 17 4 12" />
+              <polyline points="9 18 15 12 9 6" />
             </svg>
+            Below ${MIN_ORDER_AMOUNT} minimum — {tieredRows.belowMin.length} symbol{tieredRows
+              .belowMin.length === 1
+              ? ""
+              : "s"}
+          </button>
+          {#if showBelowMin}
+            <div
+              class="grid items-center gap-y-0.5 gap-x-3 text-xs"
+              style="grid-template-columns:{gridCols};"
+            >
+              {@render rowGrid(
+                tieredRows.belowMin,
+                showRank,
+                showBucket,
+                showSignal,
+                true,
+              )}
+            </div>
           {/if}
-        </button>
+        </div>
+      {/if}
 
-        <!-- rank -->
-        {#if showRank}
-          <span
-            class="text-center {tier === 'excluded'
-              ? 'opacity-40'
-              : tier === 'zero'
-                ? 'opacity-50'
-                : ''}"
+      <!-- Excluded tier (collapsed by default) -->
+      {#if tieredRows.excluded.length > 0}
+        <div>
+          <div class="sticky left-0 border-t border-border/30 pt-1.5"></div>
+          <button
+            type="button"
+            class="sticky left-0 flex w-max items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-text-secondary/50 hover:text-text-secondary transition-colors"
+            onclick={() => (showExcluded = !showExcluded)}
           >
-            {#if row.rank > 0}
-              <span
-                class="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-surface-raised text-[9px] font-bold tabular-nums text-text-secondary"
-              >
-                {row.rank}
-              </span>
-            {/if}
-          </span>
-        {/if}
-
-        <!-- symbol -->
-        <span
-          class="truncate font-medium text-text-primary {tier === 'excluded'
-            ? 'opacity-40 line-through'
-            : tier === 'zero'
-              ? 'opacity-50'
-              : ''}"
-        >
-          {row.symbol}
-        </span>
-
-        <!-- current % of portfolio -->
-        <span
-          class="text-right tabular-nums text-[10px] text-text-secondary/70 {tier === 'excluded'
-            ? 'opacity-40'
-            : tier === 'zero'
-              ? 'opacity-50'
-              : ''}"
-          title="{pctFmt.format(totalPortfolioValue > 0 ? (row.currentValue / totalPortfolioValue) * 100 : 0)}% of portfolio"
-        >
-          {#if totalPortfolioValue > 0}
-            {pctFmt.format((row.currentValue / totalPortfolioValue) * 100)}%
+            <svg
+              class="h-2.5 w-2.5 shrink-0 transition-transform duration-150"
+              class:rotate-90={showExcluded}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            Excluded — {tieredRows.excluded.length} symbol{tieredRows.excluded
+              .length === 1
+              ? ""
+              : "s"}
+          </button>
+          {#if showExcluded}
+            <div
+              class="grid items-center gap-y-0.5 gap-x-3 text-xs"
+              style="grid-template-columns:{gridCols};"
+            >
+              {@render rowGrid(
+                tieredRows.excluded,
+                showRank,
+                showBucket,
+                showSignal,
+                true,
+              )}
+            </div>
           {/if}
-        </span>
-
-        <!-- bucket swatch + name -->
-        {#if showBucket}
-          <span
-            class="inline-block h-2 w-2 rounded-sm {tier === 'excluded'
-              ? 'opacity-40'
-              : tier === 'zero'
-                ? 'opacity-50'
-                : ''}"
-            style="background:{row.bucketColor || 'transparent'}"
-            title={row.bucketName}
-          ></span>
-          <span
-            class="truncate text-[10px] text-text-secondary {tier === 'excluded'
-              ? 'opacity-40'
-              : tier === 'zero'
-                ? 'opacity-50'
-                : ''}"
-          >
-            {row.bucketName}
-          </span>
-        {/if}
-
-        <!-- signal metric -->
-        {#if showSignal}
-          <span
-            class="text-right tabular-nums text-[10px] {tier === 'excluded'
-              ? 'opacity-40'
-              : tier === 'zero'
-                ? 'opacity-50'
-                : ''}"
-            title={mv != null
-              ? `${METRIC_LABELS[selectedMetric]}: ${pctFmt.format(mv)}%${row.rank > 0 ? ` (rank #${row.rank})` : ""}`
-              : ""}
-          >
-            {#if mv != null}
-              <span class={mv < 0 ? "text-gain" : "text-loss"}>
-                {pctFmt.format(mv)}%
-              </span>
-              <span class="{mv < 0 ? 'text-gain' : 'text-loss'} opacity-50"
-                >{METRIC_LABELS[selectedMetric]}</span
-              >
-            {/if}
-          </span>
-        {/if}
-
-        <!-- reason -->
-        <span
-          class="truncate px-1 text-[10px] {tier === 'excluded'
-            ? 'opacity-40'
-            : tier === 'zero'
-              ? 'opacity-50'
-              : ''}
-          {row.belowMinimum
-            ? 'text-amber-500'
-            : row.forced
-              ? 'text-amber-500/80'
-              : 'text-text-secondary'}"
-          title={row.reason ?? ""}
-        >
-          {#if row.reason && !row.excluded}
-            {row.reason}
-          {/if}
-        </span>
-
-        <!-- allocation amount -->
-        <span
-          class="text-right tabular-nums font-medium {tier === 'excluded'
-            ? 'opacity-40'
-            : tier === 'zero'
-              ? 'opacity-50'
-              : ''}
-          {row.belowMinimum
-            ? 'text-amber-500'
-            : row.forced
-              ? 'text-amber-500'
-              : row.excluded
-                ? 'text-text-secondary'
-                : 'text-text-primary'}"
-        >
-          {fmt.format(row.allocation)}
-        </span>
-      {/each}
+        </div>
+      {/if}
     </div>
   {:else if cashAmount <= 0}
     <p class="text-xs text-text-secondary">

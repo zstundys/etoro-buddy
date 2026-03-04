@@ -1,6 +1,7 @@
 import type { Candle } from "$lib/etoro-api";
 import {
   computeOpportunityMetrics,
+  METRIC_LABELS,
   type OpportunityMetrics,
   type OpportunityMetricKey,
 } from "$lib/candle-utils";
@@ -617,6 +618,199 @@ export function computeAllocations(opts: {
     fees: { orderCount, totalFees: orderCount * FEE_PER_ORDER, belowMinCount },
     projections,
     rebalanceProgress,
+  };
+}
+
+export type ModePreview = {
+  mode: AllocationMode;
+  label: string;
+  result: AllocationsResult;
+  topSymbols: { symbol: string; allocation: number }[];
+};
+
+export type Recommendation = {
+  mode: AllocationMode;
+  label: string;
+  summary: string;
+  topSymbols: { symbol: string; allocation: number }[];
+  orderCount: number;
+  totalFees: number;
+};
+
+const MODE_LABELS: Record<AllocationMode, string> = {
+  rebalance: "Rebalance",
+  target: "By target %",
+  opportunity: "By opportunity",
+  equal: "Equal split",
+};
+
+export function computeAllModes(opts: {
+  buckets: BucketComputed[];
+  totalTargetPercent: number;
+  totalAssignedMarketValue: number;
+  cashAmount: number;
+  selectedMetric: OpportunityMetricKey;
+  excludedSymbols: Set<string>;
+  forcedSymbols: Set<string>;
+  metricsMap: Map<string, OpportunityMetrics>;
+  allSymbols: PortfolioSymbol[];
+  withinBucketStrategy: WithinBucketStrategy;
+  hasBucketTargets: boolean;
+  hasMetrics: boolean;
+}): ModePreview[] {
+  const {
+    buckets,
+    totalTargetPercent,
+    totalAssignedMarketValue,
+    cashAmount,
+    selectedMetric,
+    excludedSymbols,
+    forcedSymbols,
+    metricsMap,
+    allSymbols,
+    withinBucketStrategy,
+    hasBucketTargets,
+    hasMetrics,
+  } = opts;
+
+  if (cashAmount <= 0 || allSymbols.length === 0) return [];
+
+  const modes: AllocationMode[] = [];
+  if (hasBucketTargets) modes.push("rebalance", "target");
+  if (hasMetrics) modes.push("opportunity");
+  modes.push("equal");
+
+  return modes.map((mode) => {
+    const result = computeAllocations({
+      buckets,
+      totalTargetPercent,
+      totalAssignedMarketValue,
+      cashAmount,
+      allocationMode: mode,
+      selectedMetric,
+      excludedSymbols,
+      forcedSymbols,
+      metricsMap,
+      allSymbols,
+      withinBucketStrategy,
+    });
+
+    const allSymAllocs = result.allocations.flatMap((a) => a.symbolAllocations);
+    const topSymbols = allSymAllocs
+      .filter((s) => !s.excluded && s.allocation >= 0.01)
+      .sort((a, b) => b.allocation - a.allocation)
+      .slice(0, 5)
+      .map((s) => ({ symbol: s.symbol, allocation: s.allocation }));
+
+    return {
+      mode,
+      label: MODE_LABELS[mode],
+      result,
+      topSymbols,
+    };
+  });
+}
+
+export function computeRecommendation(opts: {
+  previews: ModePreview[];
+  buckets: BucketComputed[];
+  totalAssignedMarketValue: number;
+  cashAmount: number;
+  metricsMap: Map<string, OpportunityMetrics>;
+  selectedMetric: OpportunityMetricKey;
+}): Recommendation | null {
+  const {
+    previews,
+    buckets,
+    totalAssignedMarketValue,
+    cashAmount,
+    metricsMap,
+    selectedMetric,
+  } = opts;
+
+  if (previews.length === 0 || cashAmount <= 0) return null;
+
+  const scores = new Map<AllocationMode, number>();
+
+  for (const p of previews) {
+    let score = 0;
+
+    if (p.mode === "rebalance" && p.result.rebalanceProgress != null) {
+      const progress = p.result.rebalanceProgress;
+      score += progress * 0.5;
+
+      const maxUnderweight = buckets.reduce((max, b) => {
+        if (b.targetPercent <= 0) return max;
+        const gap = b.targetPercent - b.actualPercent;
+        return Math.max(max, gap);
+      }, 0);
+      if (maxUnderweight > 5) score += 25;
+      else if (maxUnderweight > 2) score += 10;
+    }
+
+    if (p.mode === "target") {
+      score += 20;
+    }
+
+    if (p.mode === "opportunity") {
+      let negativeCount = 0;
+      let totalNeg = 0;
+      for (const [, m] of metricsMap) {
+        const v = m[selectedMetric];
+        if (v != null && v < -5) {
+          negativeCount++;
+          totalNeg += Math.abs(v);
+        }
+      }
+      if (negativeCount >= 3) score += 30 + Math.min(totalNeg / negativeCount, 20);
+      else if (negativeCount >= 1) score += 15;
+    }
+
+    if (p.mode === "equal") {
+      score += 5;
+    }
+
+    const activeOrders = p.result.fees.orderCount;
+    const belowMin = p.result.fees.belowMinCount;
+    if (activeOrders > 0 && belowMin / activeOrders > 0.5) {
+      score -= 10;
+    }
+
+    scores.set(p.mode, score);
+  }
+
+  let bestMode: AllocationMode = previews[0].mode;
+  let bestScore = -Infinity;
+  for (const [mode, score] of scores) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestMode = mode;
+    }
+  }
+
+  const best = previews.find((p) => p.mode === bestMode);
+  if (!best) return null;
+
+  const { fees, rebalanceProgress } = best.result;
+  let summary: string;
+
+  if (bestMode === "rebalance" && rebalanceProgress != null) {
+    summary = `Deploy across ${fees.orderCount} positions to close ${rebalanceProgress}% of the allocation gap`;
+  } else if (bestMode === "opportunity") {
+    summary = `Weight toward the most discounted symbols by ${METRIC_LABELS[selectedMetric]} signal`;
+  } else if (bestMode === "target") {
+    summary = `Distribute by bucket target weights across ${fees.orderCount} positions`;
+  } else {
+    summary = `Split equally across ${fees.orderCount} positions`;
+  }
+
+  return {
+    mode: bestMode,
+    label: MODE_LABELS[bestMode],
+    summary,
+    topSymbols: best.topSymbols,
+    orderCount: fees.orderCount,
+    totalFees: fees.totalFees,
   };
 }
 

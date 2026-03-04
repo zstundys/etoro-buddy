@@ -7,6 +7,8 @@ import {
   FEE_PER_ORDER,
   MIN_ORDER_AMOUNT,
   computeAllocations,
+  computeAllModes,
+  computeRecommendation,
   buildFlatList,
 } from "./cash-allocation.ts";
 
@@ -1842,5 +1844,348 @@ describe("buildFlatList – forced symbols", () => {
     if (ovrRow.allocation >= 0.01) {
       expect(ovrRow.rank).toBeGreaterThan(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeAllModes
+// ---------------------------------------------------------------------------
+describe("computeAllModes", () => {
+  const allSyms: PortfolioSymbol[] = [
+    { symbol: "AAPL", instrumentId: 1, marketValue: 3000 },
+    { symbol: "MSFT", instrumentId: 2, marketValue: 3000 },
+    { symbol: "GOOG", instrumentId: 3, marketValue: 2000 },
+    { symbol: "AMZN", instrumentId: 4, marketValue: 2000 },
+  ];
+
+  const metricsForModes = new Map<string, OpportunityMetrics>([
+    ["AAPL", makeMetrics(-10)],
+    ["MSFT", makeMetrics(-5)],
+    ["GOOG", makeMetrics(-20)],
+    ["AMZN", makeMetrics(3)],
+  ]);
+
+  function callAllModes(
+    overrides: Partial<Parameters<typeof computeAllModes>[0]> = {},
+  ) {
+    return computeAllModes({
+      buckets,
+      totalTargetPercent,
+      totalAssignedMarketValue,
+      cashAmount: 1000,
+      selectedMetric: "diff200MA",
+      excludedSymbols: EMPTY_EXCLUDED,
+      forcedSymbols: new Set<string>(),
+      metricsMap: metricsForModes,
+      allSymbols: allSyms,
+      withinBucketStrategy: "market-value",
+      hasBucketTargets: true,
+      hasMetrics: true,
+      ...overrides,
+    });
+  }
+
+  it("returns all 4 modes when buckets and metrics are available", () => {
+    const previews = callAllModes();
+    expect(previews).toHaveLength(4);
+    const modes = previews.map((p) => p.mode);
+    expect(modes).toContain("rebalance");
+    expect(modes).toContain("target");
+    expect(modes).toContain("opportunity");
+    expect(modes).toContain("equal");
+  });
+
+  it("omits rebalance/target when no bucket targets exist", () => {
+    const previews = callAllModes({ hasBucketTargets: false });
+    const modes = previews.map((p) => p.mode);
+    expect(modes).not.toContain("rebalance");
+    expect(modes).not.toContain("target");
+    expect(modes).toContain("opportunity");
+    expect(modes).toContain("equal");
+  });
+
+  it("omits opportunity when no metrics exist", () => {
+    const previews = callAllModes({ hasMetrics: false });
+    const modes = previews.map((p) => p.mode);
+    expect(modes).not.toContain("opportunity");
+    expect(modes).toContain("equal");
+  });
+
+  it("returns empty when cashAmount is 0", () => {
+    const previews = callAllModes({ cashAmount: 0 });
+    expect(previews).toHaveLength(0);
+  });
+
+  it("returns empty when allSymbols is empty", () => {
+    const previews = callAllModes({ allSymbols: [] });
+    expect(previews).toHaveLength(0);
+  });
+
+  it("each preview has a result with valid fee info", () => {
+    const previews = callAllModes();
+    for (const p of previews) {
+      expect(p.result.fees.orderCount).toBeGreaterThanOrEqual(0);
+      expect(p.result.fees.totalFees).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("topSymbols has at most 5 entries sorted by allocation descending", () => {
+    const previews = callAllModes();
+    for (const p of previews) {
+      expect(p.topSymbols.length).toBeLessThanOrEqual(5);
+      for (let i = 1; i < p.topSymbols.length; i++) {
+        expect(p.topSymbols[i].allocation).toBeLessThanOrEqual(
+          p.topSymbols[i - 1].allocation,
+        );
+      }
+    }
+  });
+
+  it("topSymbols only includes non-excluded symbols with allocation >= 0.01", () => {
+    const previews = callAllModes({
+      excludedSymbols: new Set(["AAPL"]),
+    });
+    for (const p of previews) {
+      for (const s of p.topSymbols) {
+        expect(s.symbol).not.toBe("AAPL");
+        expect(s.allocation).toBeGreaterThanOrEqual(0.01);
+      }
+    }
+  });
+
+  it("each preview has a human-readable label", () => {
+    const previews = callAllModes();
+    for (const p of previews) {
+      expect(p.label.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("rebalance preview includes rebalanceProgress", () => {
+    const previews = callAllModes();
+    const rebal = previews.find((p) => p.mode === "rebalance");
+    expect(rebal).toBeDefined();
+    expect(rebal!.result.rebalanceProgress).not.toBeNull();
+  });
+
+  it("opportunity preview has no rebalanceProgress", () => {
+    const previews = callAllModes();
+    const opp = previews.find((p) => p.mode === "opportunity");
+    expect(opp).toBeDefined();
+    expect(opp!.result.rebalanceProgress).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeRecommendation
+// ---------------------------------------------------------------------------
+describe("computeRecommendation", () => {
+  const allSyms: PortfolioSymbol[] = [
+    { symbol: "AAPL", instrumentId: 1, marketValue: 3000 },
+    { symbol: "MSFT", instrumentId: 2, marketValue: 3000 },
+    { symbol: "GOOG", instrumentId: 3, marketValue: 2000 },
+    { symbol: "AMZN", instrumentId: 4, marketValue: 2000 },
+  ];
+
+  const metricsForReco = new Map<string, OpportunityMetrics>([
+    ["AAPL", makeMetrics(-10)],
+    ["MSFT", makeMetrics(-5)],
+    ["GOOG", makeMetrics(-20)],
+    ["AMZN", makeMetrics(3)],
+  ]);
+
+  function getRecommendation(
+    overrides: Partial<Parameters<typeof computeAllModes>[0]> = {},
+  ) {
+    const previews = computeAllModes({
+      buckets,
+      totalTargetPercent,
+      totalAssignedMarketValue,
+      cashAmount: 1000,
+      selectedMetric: "diff200MA",
+      excludedSymbols: EMPTY_EXCLUDED,
+      forcedSymbols: new Set<string>(),
+      metricsMap: metricsForReco,
+      allSymbols: allSyms,
+      withinBucketStrategy: "market-value",
+      hasBucketTargets: true,
+      hasMetrics: true,
+      ...overrides,
+    });
+    return computeRecommendation({
+      previews,
+      buckets: overrides.buckets ?? buckets,
+      totalAssignedMarketValue:
+        overrides.totalAssignedMarketValue ?? totalAssignedMarketValue,
+      cashAmount: overrides.cashAmount ?? 1000,
+      metricsMap: overrides.metricsMap ?? metricsForReco,
+      selectedMetric: overrides.selectedMetric ?? "diff200MA",
+    });
+  }
+
+  it("returns null when previews are empty", () => {
+    const result = computeRecommendation({
+      previews: [],
+      buckets,
+      totalAssignedMarketValue,
+      cashAmount: 1000,
+      metricsMap: metricsForReco,
+      selectedMetric: "diff200MA",
+    });
+    expect(result).toBeNull();
+  });
+
+  it("returns null when cashAmount is 0", () => {
+    const result = getRecommendation({ cashAmount: 0 });
+    expect(result).toBeNull();
+  });
+
+  it("returns a recommendation with a valid mode", () => {
+    const rec = getRecommendation();
+    expect(rec).not.toBeNull();
+    expect(["rebalance", "target", "opportunity", "equal"]).toContain(
+      rec!.mode,
+    );
+  });
+
+  it("recommendation has a non-empty summary", () => {
+    const rec = getRecommendation();
+    expect(rec!.summary.length).toBeGreaterThan(0);
+  });
+
+  it("recommendation has a human-readable label", () => {
+    const rec = getRecommendation();
+    expect(rec!.label.length).toBeGreaterThan(0);
+  });
+
+  it("topSymbols is populated when there are active allocations", () => {
+    const rec = getRecommendation();
+    expect(rec!.topSymbols.length).toBeGreaterThan(0);
+  });
+
+  it("orderCount and totalFees are populated", () => {
+    const rec = getRecommendation();
+    expect(rec!.orderCount).toBeGreaterThan(0);
+    expect(rec!.totalFees).toBeGreaterThan(0);
+  });
+
+  it("recommends rebalance when buckets are significantly underweight", () => {
+    const heavyOver = makeBucket({
+      id: "over",
+      targetPercent: 20,
+      actualPercent: 70,
+      delta: 50,
+      symbolDetails: [
+        { symbol: "OVR", instrumentId: 20, marketValue: 7000, weight: 100 },
+      ],
+    });
+    const heavyUnder = makeBucket({
+      id: "under",
+      targetPercent: 80,
+      actualPercent: 30,
+      delta: -50,
+      symbolDetails: [
+        { symbol: "UND", instrumentId: 21, marketValue: 3000, weight: 100 },
+      ],
+    });
+    const rec = getRecommendation({
+      buckets: [heavyOver, heavyUnder],
+      totalAssignedMarketValue: 10000,
+      metricsMap: EMPTY_METRICS,
+      hasMetrics: false,
+    });
+    expect(rec).not.toBeNull();
+    expect(rec!.mode).toBe("rebalance");
+  });
+
+  it("recommends opportunity when many symbols have strong negative signals and no bucket imbalance", () => {
+    const strongSignals = new Map<string, OpportunityMetrics>([
+      ["AAPL", makeMetrics(-25)],
+      ["MSFT", makeMetrics(-30)],
+      ["GOOG", makeMetrics(-35)],
+      ["AMZN", makeMetrics(-20)],
+    ]);
+    const rec = getRecommendation({
+      hasBucketTargets: false,
+      metricsMap: strongSignals,
+    });
+    expect(rec).not.toBeNull();
+    expect(rec!.mode).toBe("opportunity");
+  });
+
+  it("recommends equal when no buckets and no strong signals", () => {
+    const weakSignals = new Map<string, OpportunityMetrics>([
+      ["AAPL", makeMetrics(-1)],
+      ["MSFT", makeMetrics(2)],
+      ["GOOG", makeMetrics(-1)],
+      ["AMZN", makeMetrics(3)],
+    ]);
+    const rec = getRecommendation({
+      hasBucketTargets: false,
+      hasMetrics: true,
+      metricsMap: weakSignals,
+    });
+    expect(rec).not.toBeNull();
+    expect(rec!.mode).toBe("equal");
+  });
+
+  it("penalizes modes where most allocations are below minimum", () => {
+    const manySyms: PortfolioSymbol[] = Array.from({ length: 20 }, (_, i) => ({
+      symbol: `S${i}`,
+      instrumentId: i,
+      marketValue: 100,
+    }));
+    const manyMetrics = new Map<string, OpportunityMetrics>(
+      manySyms.map((s) => [s.symbol, makeMetrics(-1)]),
+    );
+    const rec = getRecommendation({
+      allSymbols: manySyms,
+      metricsMap: manyMetrics,
+      cashAmount: 50,
+      hasBucketTargets: false,
+    });
+    expect(rec).not.toBeNull();
+  });
+
+  it("summary mentions gap percentage for rebalance", () => {
+    const heavyOver = makeBucket({
+      id: "over",
+      targetPercent: 20,
+      actualPercent: 70,
+      delta: 50,
+      symbolDetails: [
+        { symbol: "OVR", instrumentId: 20, marketValue: 7000, weight: 100 },
+      ],
+    });
+    const heavyUnder = makeBucket({
+      id: "under",
+      targetPercent: 80,
+      actualPercent: 30,
+      delta: -50,
+      symbolDetails: [
+        { symbol: "UND", instrumentId: 21, marketValue: 3000, weight: 100 },
+      ],
+    });
+    const rec = getRecommendation({
+      buckets: [heavyOver, heavyUnder],
+      totalAssignedMarketValue: 10000,
+      metricsMap: EMPTY_METRICS,
+      hasMetrics: false,
+    });
+    expect(rec!.summary).toContain("% of the allocation gap");
+  });
+
+  it("summary mentions signal for opportunity mode", () => {
+    const strongSignals = new Map<string, OpportunityMetrics>([
+      ["AAPL", makeMetrics(-25)],
+      ["MSFT", makeMetrics(-30)],
+      ["GOOG", makeMetrics(-35)],
+      ["AMZN", makeMetrics(-20)],
+    ]);
+    const rec = getRecommendation({
+      hasBucketTargets: false,
+      metricsMap: strongSignals,
+    });
+    expect(rec!.mode).toBe("opportunity");
+    expect(rec!.summary).toContain("discounted");
   });
 });
