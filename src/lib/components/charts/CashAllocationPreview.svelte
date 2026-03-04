@@ -105,6 +105,10 @@
     }),
   );
 
+  const totalPortfolioValue = $derived(
+    allSymbols.reduce((sum, s) => sum + s.marketValue, 0),
+  );
+
   const fees = $derived(result.fees);
   const projections = $derived(result.projections);
   const rebalanceProgress = $derived(result.rebalanceProgress);
@@ -376,8 +380,9 @@
         14px
         {showRank ? '20px ' : ''}
         auto
+        2.5rem
         {showBucket ? '10px minmax(0, 5rem) ' : ''}
-        {showSignal ? '3.5rem ' : ''}
+        {showSignal ? '5.5rem ' : ''}
         1fr
         max-content;"
     >
@@ -387,7 +392,7 @@
         {@const prevTier = i > 0 ? rowTier(flatList[i - 1]) : tier}
         {@const zeroNonExcluded = !row.excluded && row.allocation < 0.01}
         {@const cols =
-          4 + (showRank ? 1 : 0) + (showBucket ? 2 : 0) + (showSignal ? 1 : 0)}
+          5 + (showRank ? 1 : 0) + (showBucket ? 2 : 0) + (showSignal ? 1 : 0)}
         {#if tier !== prevTier}
           {#if (prevTier === "active" || prevTier === "forced") && tier === "zero"}
             <div
@@ -478,6 +483,20 @@
           {row.symbol}
         </span>
 
+        <!-- current % of portfolio -->
+        <span
+          class="text-right tabular-nums text-[10px] text-text-secondary/70 {tier === 'excluded'
+            ? 'opacity-40'
+            : tier === 'zero'
+              ? 'opacity-50'
+              : ''}"
+          title="{pctFmt.format(totalPortfolioValue > 0 ? (row.currentValue / totalPortfolioValue) * 100 : 0)}% of portfolio"
+        >
+          {#if totalPortfolioValue > 0}
+            {pctFmt.format((row.currentValue / totalPortfolioValue) * 100)}%
+          {/if}
+        </span>
+
         <!-- bucket swatch + name -->
         {#if showBucket}
           <span
@@ -507,17 +526,18 @@
               ? 'opacity-40'
               : tier === 'zero'
                 ? 'opacity-50'
-                : ''}
-            {mv != null ? (mv < 0 ? 'text-gain' : 'text-loss') : ''}"
+                : ''}"
+            title={mv != null
+              ? `${METRIC_LABELS[selectedMetric]}: ${pctFmt.format(mv)}%${row.rank > 0 ? ` (rank #${row.rank})` : ""}`
+              : ""}
           >
             {#if mv != null}
-              <span
-                title="{METRIC_LABELS[selectedMetric]}: {pctFmt.format(
-                  mv,
-                )}%{row.rank > 0 ? ` (rank #${row.rank})` : ''}"
-              >
+              <span class={mv < 0 ? "text-gain" : "text-loss"}>
                 {pctFmt.format(mv)}%
               </span>
+              <span class="{mv < 0 ? 'text-gain' : 'text-loss'} opacity-50"
+                >{METRIC_LABELS[selectedMetric]}</span
+              >
             {/if}
           </span>
         {/if}
