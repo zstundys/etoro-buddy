@@ -20,7 +20,7 @@ export const load: PageServerLoad = async () => {
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to load portfolio";
     return {
-      portfolio: { positions: [], credit: 0, availableCash: 0, totalInvested: 0, totalPnl: 0 },
+      portfolio: { positions: [], pendingOrders: [], credit: 0, availableCash: 0, totalInvested: 0, totalPnl: 0 },
       recentTrades: [],
       error: message,
       needsKeys: false,

@@ -127,7 +127,7 @@
       watchlistLoading={client.watchlistLoading}
       onSourceChange={client.setOpportunitySource}
     />
-    <RecentTrades {trades} positions={portfolio.positions} />
+    <RecentTrades {trades} positions={portfolio.positions} pendingOrders={portfolio.pendingOrders} />
     <PositionsTable positions={portfolio.positions} {candleMap} />
     <ChartsDashboard
       positions={portfolio.positions}

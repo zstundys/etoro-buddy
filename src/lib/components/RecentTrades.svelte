@@ -1,5 +1,9 @@
 <script lang="ts">
-  import type { EnrichedTrade, EnrichedPosition } from "$lib/etoro-api";
+  import type {
+    EnrichedTrade,
+    EnrichedPosition,
+    EnrichedPendingOrder,
+  } from "$lib/etoro-api";
   import {
     percent as pctFmt,
     shortDate as dateFmt,
@@ -14,11 +18,17 @@
   let {
     trades,
     positions,
-  }: { trades: EnrichedTrade[]; positions: EnrichedPosition[] } = $props();
+    pendingOrders = [],
+  }: {
+    trades: EnrichedTrade[];
+    positions: EnrichedPosition[];
+    pendingOrders?: EnrichedPendingOrder[];
+  } = $props();
 
   type UnifiedRow = {
     id: number;
-    status: "open" | "closed";
+    status: "open" | "closed" | "pending";
+    orderType?: "market" | "limit";
     date: string;
     symbol: string;
     logoUrl?: string;
@@ -63,8 +73,27 @@
       pnlPercent: p.pnlPercent,
     }));
 
-    return [...closedRows, ...openRows].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    const pendingRows: UnifiedRow[] = pendingOrders.map((o) => ({
+      id: o.orderId,
+      status: "pending" as const,
+      orderType: o.type,
+      date: o.dateCreated || new Date().toISOString(),
+      symbol: o.symbol ? normalizeSymbol(o.symbol) : `#${o.instrumentId}`,
+      logoUrl: o.logoUrl,
+      isBuy: o.isBuy,
+      invested: o.amount,
+      openRate: 0,
+      fees: 0,
+      pnl: undefined,
+      pnlPercent: undefined,
+    }));
+
+    return [...pendingRows, ...closedRows, ...openRows].sort(
+      (a, b) => {
+        if (a.status === "pending" && b.status !== "pending") return -1;
+        if (a.status !== "pending" && b.status === "pending") return 1;
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
+      },
     );
   });
 
@@ -107,6 +136,7 @@
     });
   });
 
+  const pendingRows = $derived(rows.filter((r) => r.status === "pending"));
   const closedRows = $derived(rows.filter((r) => r.status === "closed"));
   const openRows = $derived(rows.filter((r) => r.status === "open"));
   const closedProfit = $derived(
@@ -141,11 +171,17 @@
       </p>
     </div>
   {:else}
-    <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <div class="mb-4 grid grid-cols-2 gap-3 {pendingRows.length > 0 ? 'sm:grid-cols-6' : 'sm:grid-cols-5'}">
       <div class="rounded-xl border border-border bg-surface-raised px-4 py-3">
         <p class="text-xs text-text-secondary">Total</p>
         <p class="text-lg font-semibold">{rows.length}</p>
       </div>
+      {#if pendingRows.length > 0}
+        <div class="rounded-xl border border-border bg-surface-raised px-4 py-3">
+          <p class="text-xs text-text-secondary">Pending</p>
+          <p class="text-lg font-semibold text-amber-400">{pendingRows.length}</p>
+        </div>
+      {/if}
       <div class="rounded-xl border border-border bg-surface-raised px-4 py-3">
         <p class="text-xs text-text-secondary">Opened</p>
         <p class="text-lg font-semibold text-brand">{openRows.length}</p>
@@ -205,7 +241,13 @@
                   {dateFmt.format(new Date(row.date))}
                 </td>
                 <td class="px-3 py-2.5">
-                  {#if row.status === "open"}
+                  {#if row.status === "pending"}
+                    <span
+                      class="inline-flex rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-medium text-amber-400"
+                    >
+                      {row.orderType === "limit" ? "LIMIT" : "PENDING"}
+                    </span>
+                  {:else if row.status === "open"}
                     <span
                       class="inline-flex rounded-full bg-brand/15 px-2 py-0.5 text-[10px] font-medium text-brand"
                     >
@@ -251,12 +293,19 @@
                 >
                 <td
                   class="px-3 py-2.5 text-right tabular-nums text-text-secondary"
-                  ><Money value={row.openRate} public /></td
                 >
+                  {#if row.status === "pending"}
+                    <span class="text-text-secondary">—</span>
+                  {:else}
+                    <Money value={row.openRate} public />
+                  {/if}
+                </td>
                 <td
                   class="px-3 py-2.5 text-right tabular-nums text-text-secondary"
                 >
-                  {#if row.status === "closed" && row.closeRate !== undefined}
+                  {#if row.status === "pending"}
+                    <span class="text-text-secondary">—</span>
+                  {:else if row.status === "closed" && row.closeRate !== undefined}
                     <Money value={row.closeRate} public />
                   {:else if row.currentRate !== undefined}
                     <Money value={row.currentRate} public />
@@ -265,7 +314,9 @@
                   {/if}
                 </td>
                 <td class="px-3 py-2.5 text-right tabular-nums">
-                  {#if row.fees !== 0}
+                  {#if row.status === "pending"}
+                    <span class="text-text-secondary">—</span>
+                  {:else if row.fees !== 0}
                     <Money
                       value={row.fees}
                       abs
@@ -281,20 +332,24 @@
                   {/if}
                 </td>
                 <td class="px-3 py-2.5 text-right tabular-nums font-medium">
-                  {#if row.pnl !== undefined}
+                  {#if row.status === "pending"}
+                    <span class="text-text-secondary">—</span>
+                  {:else if row.pnl !== undefined}
                     <Money value={row.pnl} showSign />
                   {:else}
                     <span class={pnlColor(row.pnl)}>—</span>
                   {/if}
                 </td>
                 <td
-                  class="py-2.5 pl-3 pr-5 text-right tabular-nums {pnlColor(
-                    row.pnlPercent,
-                  )}"
+                  class="py-2.5 pl-3 pr-5 text-right tabular-nums {row.status === 'pending' ? 'text-text-secondary' : pnlColor(row.pnlPercent)}"
                 >
-                  {row.pnlPercent !== undefined
-                    ? `${pnlSign(row.pnlPercent)}${pctFmt.format(row.pnlPercent)}%`
-                    : "—"}
+                  {#if row.status === "pending"}
+                    —
+                  {:else}
+                    {row.pnlPercent !== undefined
+                      ? `${pnlSign(row.pnlPercent)}${pctFmt.format(row.pnlPercent)}%`
+                      : "—"}
+                  {/if}
                 </td>
               </tr>
             {/each}

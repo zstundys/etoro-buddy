@@ -121,10 +121,13 @@ function writeLastLoaded(date: Date | null) {
 export function createClientApi() {
   const hasApiKeys = readKeys() !== null;
   const rawCached = hasApiKeys ? portfolioCache.get() : null;
-  const cachedPortfolio =
-    rawCached && rawCached.availableCash == null
-      ? { ...rawCached, availableCash: rawCached.credit }
-      : rawCached;
+  const cachedPortfolio = rawCached
+    ? {
+        ...rawCached,
+        availableCash: rawCached.availableCash ?? rawCached.credit,
+        pendingOrders: rawCached.pendingOrders ?? [],
+      }
+    : null;
   const cachedTrades = hasApiKeys ? tradesCache.get() : null;
 
   let keys = $state<ApiKeys | null>(readKeys());

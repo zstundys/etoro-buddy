@@ -50,8 +50,25 @@ const PositionSchema = z.record(z.string(), z.unknown()).transform((raw) => ({
 const PendingOrderSchema = z
   .record(z.string(), z.unknown())
   .transform((raw) => ({
+    orderId: pick<number>(
+      raw,
+      ["orderID", "orderId", "OrderID", "OrderId"],
+      0,
+    ),
+    instrumentId: pick<number>(
+      raw,
+      ["instrumentID", "instrumentId", "InstrumentID", "InstrumentId"],
+      0,
+    ),
     amount: pick<number>(raw, ["amount", "Amount"], 0),
+    isBuy: pick<boolean>(raw, ["isBuy", "IsBuy"], true),
+    leverage: pick<number>(raw, ["leverage", "Leverage"], 1),
     mirrorId: pick<number>(raw, ["mirrorID", "mirrorId", "MirrorID"], 0),
+    dateCreated: pick<string>(
+      raw,
+      ["dateCreated", "DateCreated", "dateModified", "DateModified"],
+      "",
+    ),
   }));
 
 const PortfolioResponseSchema = z
@@ -153,6 +170,7 @@ const CandleSchema = z.record(z.string(), z.unknown()).transform((raw) => ({
 // --- Types ---
 
 export type Position = z.output<typeof PositionSchema>;
+export type PendingOrder = z.output<typeof PendingOrderSchema>;
 export type Instrument = z.output<typeof InstrumentSchema>;
 export type Rate = z.output<typeof RateSchema>;
 export type Trade = z.output<typeof TradeSchema>;
@@ -184,8 +202,16 @@ export type EnrichedTrade = Trade & {
   logoUrl?: string;
 };
 
+export type EnrichedPendingOrder = PendingOrder & {
+  symbol?: string;
+  displayName?: string;
+  logoUrl?: string;
+  type: "market" | "limit";
+};
+
 export type PortfolioData = {
   positions: EnrichedPosition[];
+  pendingOrders: EnrichedPendingOrder[];
   credit: number;
   availableCash: number;
   totalInvested: number;
@@ -380,11 +406,29 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
   const pendingLimitOrders = orders.reduce((sum, o) => sum + o.amount, 0);
   const availableCash = credit - pendingManualOrders - pendingLimitOrders;
 
-  if (rawPositions.length === 0) {
-    return { positions: [], credit, availableCash, totalInvested: 0, totalPnl: 0 };
+  const allPending: EnrichedPendingOrder[] = [
+    ...ordersForOpen
+      .filter((o) => o.mirrorId === 0)
+      .map((o) => ({ ...o, type: "market" as const })),
+    ...orders.map((o) => ({ ...o, type: "limit" as const })),
+  ];
+
+  if (rawPositions.length === 0 && allPending.length === 0) {
+    return {
+      positions: [],
+      pendingOrders: [],
+      credit,
+      availableCash,
+      totalInvested: 0,
+      totalPnl: 0,
+    };
   }
 
-  const instrumentIds = [...new Set(rawPositions.map((p) => p.instrumentId))];
+  const positionInstrumentIds = rawPositions.map((p) => p.instrumentId);
+  const pendingInstrumentIds = allPending.map((o) => o.instrumentId);
+  const instrumentIds = [
+    ...new Set([...positionInstrumentIds, ...pendingInstrumentIds]),
+  ];
 
   const [instruments, rates] = await Promise.all([
     fetchInstruments(keys, instrumentIds),
@@ -396,7 +440,19 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
     instruments,
     rates,
   );
-  return { positions, credit, availableCash, totalInvested, totalPnl };
+
+  const instrumentMap = new Map(instruments.map((i) => [i.instrumentId, i]));
+  const pendingOrders: EnrichedPendingOrder[] = allPending.map((o) => {
+    const info = instrumentMap.get(o.instrumentId);
+    return {
+      ...o,
+      symbol: info?.symbol,
+      displayName: info?.displayName,
+      logoUrl: info?.logoUrl,
+    };
+  });
+
+  return { positions, pendingOrders, credit, availableCash, totalInvested, totalPnl };
 }
 
 export async function fetchTradeHistory(
