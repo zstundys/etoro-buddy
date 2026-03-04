@@ -1,9 +1,6 @@
 <script lang="ts">
   import ColorPicker from "../ColorPicker.svelte";
-  import {
-    type BucketStore,
-    bucketColor,
-  } from "./target-allocation.svelte.ts";
+  import { type BucketStore, bucketColor } from "./target-allocation.svelte.ts";
 
   let {
     store,
@@ -14,9 +11,7 @@
 
 <div class="flex flex-col gap-4">
   {#each store.buckets as bucket, i (bucket.id)}
-    <div
-      class="rounded-lg border border-border bg-surface-overlay/30 p-3"
-    >
+    <div class="rounded-lg border border-border bg-surface-overlay/30 p-3">
       <div class="flex items-center gap-2">
         <ColorPicker
           value={bucketColor(bucket, i)}
@@ -31,7 +26,7 @@
               bucket.id,
               (e.target as HTMLInputElement).value,
             )}
-          class="min-w-0 flex-1 rounded border border-border bg-surface-raised px-2 py-1 text-sm text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none"
+          class="min-w-0 w-full flex-1 rounded border border-border bg-surface-raised px-2 py-1 text-sm text-text-primary placeholder:text-text-secondary/50 focus:border-brand focus:outline-none"
         />
         <div class="flex items-center gap-1">
           <input

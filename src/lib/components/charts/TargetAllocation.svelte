@@ -151,7 +151,7 @@
                     {#each bucket.symbolDetails as sym (sym.symbol)}
                       <div class="flex items-center gap-2 py-0.5 text-[11px] text-text-secondary">
                         <span class="truncate">{sym.symbol}</span>
-                        <span class="ml-auto shrink-0 tabular-nums">
+                        <span class="ml-auto shrink-0 tabular-nums" data-private>
                           {fmt.format(sym.marketValue)}
                         </span>
                         <span class="shrink-0 tabular-nums">

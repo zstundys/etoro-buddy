@@ -205,13 +205,14 @@
   }
 
   const INFO_TEXT =
-    "Preview how available cash could be allocated across your portfolio. " +
+    "Simulates deploying your available cash (credit minus pending orders) across four modes. " +
     "Rebalance directs cash to underweight buckets proportionally to their shortfall. " +
-    "By target % divides cash by bucket target weights. " +
-    "By opportunity ignores buckets and weights cash toward stocks with the weakest signal (most discounted). " +
-    "Equal split divides cash equally across all included holdings. " +
-    "Use the checkbox to exclude specific instruments — their share redistributes to others. " +
-    "Amber rows are below eToro's $10 minimum order.";
+    "By target % splits cash according to bucket weights. " +
+    "By opportunity ignores buckets entirely and favors stocks with the weakest signal (most discounted). " +
+    "Equal split divides cash evenly across all included holdings. " +
+    "Uncheck a row to exclude it — its share redistributes to the rest. " +
+    "Rows at $0 can be force-included via the checkbox; they appear under \"Not prioritized\" and receive a proportional share. " +
+    "Amber rows are below eToro's $10 minimum order size.";
 
   let showInfo = $state(false);
 </script>

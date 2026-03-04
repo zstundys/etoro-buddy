@@ -320,7 +320,7 @@
         {#if tooltip.symbol}
           <div class="font-medium text-text-primary">{tooltip.symbol}</div>
           <div class="mt-0.5 text-[10px] text-text-secondary/70">{tooltip.name}</div>
-          <div class="mt-1 text-text-secondary">
+          <div class="mt-1 text-text-secondary" data-private>
             {currFmt.format(tooltip.marketValue ?? 0)}
           </div>
           <div class="text-text-secondary">
