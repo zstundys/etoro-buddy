@@ -24,14 +24,14 @@
     totalTargetPercent,
     totalAssignedMarketValue,
     allSymbols = [],
-    credit = 0,
+    availableCash = 0,
     candleMap = new Map(),
   }: {
     buckets: BucketComputed[];
     totalTargetPercent: number;
     totalAssignedMarketValue: number;
     allSymbols?: PortfolioSymbol[];
-    credit?: number;
+    availableCash?: number;
     candleMap?: Map<number, Candle[]>;
   } = $props();
 
@@ -54,8 +54,8 @@
   let preferUndervalued = $state(false);
 
   $effect(() => {
-    if (credit > 0 && !cashInitialized) {
-      cashAmount = Math.round(credit * 100) / 100;
+    if (availableCash > 0 && !cashInitialized) {
+      cashAmount = Math.round(availableCash * 100) / 100;
       cashInitialized = true;
     }
   });

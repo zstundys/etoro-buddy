@@ -12,13 +12,13 @@
 
   let {
     positions,
-    credit = 0,
+    availableCash = 0,
     candleMap = new Map(),
     editing = false,
     oneditchange,
   }: {
     positions: EnrichedPosition[];
-    credit?: number;
+    availableCash?: number;
     candleMap?: Map<number, Candle[]>;
     editing?: boolean;
     oneditchange?: (editing: boolean) => void;
@@ -192,7 +192,7 @@
     totalTargetPercent={store.totalTargetPercent}
     totalAssignedMarketValue={store.totalAssignedMarketValue}
     allSymbols={store.allSymbols}
-    {credit}
+    {availableCash}
     {candleMap}
   />
 </div>

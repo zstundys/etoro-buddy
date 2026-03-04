@@ -8,12 +8,12 @@
   let {
     positions,
     candleMap,
-    credit = 0,
+    availableCash = 0,
     colorMap = new Map(),
   }: {
     positions: EnrichedPosition[];
     candleMap: Map<number, Candle[]>;
-    credit: number;
+    availableCash: number;
     colorMap?: Map<string, string>;
   } = $props();
 
@@ -230,7 +230,7 @@
             value: (row[sym] as number) ?? 0,
           }))
           .filter((b) => b.value > 0);
-        const total = breakdown.reduce((s, b) => s + b.value, 0) + credit;
+        const total = breakdown.reduce((s, b) => s + b.value, 0) + availableCash;
 
         tooltip = {
           show: true,

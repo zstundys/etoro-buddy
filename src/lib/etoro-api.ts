@@ -47,16 +47,32 @@ const PositionSchema = z.record(z.string(), z.unknown()).transform((raw) => ({
   ),
 }));
 
+const PendingOrderSchema = z
+  .record(z.string(), z.unknown())
+  .transform((raw) => ({
+    amount: pick<number>(raw, ["amount", "Amount"], 0),
+    mirrorId: pick<number>(raw, ["mirrorID", "mirrorId", "MirrorID"], 0),
+  }));
+
 const PortfolioResponseSchema = z
   .object({
     clientPortfolio: z
       .object({
         positions: z.array(PositionSchema).default([]),
         credit: z.number().default(0),
+        ordersForOpen: z.array(PendingOrderSchema).default([]),
+        orders: z.array(PendingOrderSchema).default([]),
       })
-      .default({ positions: [], credit: 0 }),
+      .default({ positions: [], credit: 0, ordersForOpen: [], orders: [] }),
   })
-  .default({ clientPortfolio: { positions: [], credit: 0 } });
+  .default({
+    clientPortfolio: {
+      positions: [],
+      credit: 0,
+      ordersForOpen: [],
+      orders: [],
+    },
+  });
 
 const InstrumentSchema = z.record(z.string(), z.unknown()).transform((raw) => {
   const images = (raw.images ?? raw.Images ?? []) as Array<
@@ -171,6 +187,7 @@ export type EnrichedTrade = Trade & {
 export type PortfolioData = {
   positions: EnrichedPosition[];
   credit: number;
+  availableCash: number;
   totalInvested: number;
   totalPnl: number;
 };
@@ -354,11 +371,17 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
   }
 
   const parsed = PortfolioResponseSchema.parse(await portfolioRes.json());
-  const rawPositions = parsed.clientPortfolio.positions;
-  const credit = parsed.clientPortfolio.credit;
+  const { positions: rawPositions, credit, ordersForOpen, orders } =
+    parsed.clientPortfolio;
+
+  const pendingManualOrders = ordersForOpen
+    .filter((o) => o.mirrorId === 0)
+    .reduce((sum, o) => sum + o.amount, 0);
+  const pendingLimitOrders = orders.reduce((sum, o) => sum + o.amount, 0);
+  const availableCash = credit - pendingManualOrders - pendingLimitOrders;
 
   if (rawPositions.length === 0) {
-    return { positions: [], credit, totalInvested: 0, totalPnl: 0 };
+    return { positions: [], credit, availableCash, totalInvested: 0, totalPnl: 0 };
   }
 
   const instrumentIds = [...new Set(rawPositions.map((p) => p.instrumentId))];
@@ -373,7 +396,7 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
     instruments,
     rates,
   );
-  return { positions, credit, totalInvested, totalPnl };
+  return { positions, credit, availableCash, totalInvested, totalPnl };
 }
 
 export async function fetchTradeHistory(

@@ -28,4 +28,7 @@
   const color = $derived(showSign ? pnlColor(value) : "");
 </script>
 
-<span data-private={isPublic ? undefined : ""} class="{color} {cls}">{display}</span>
+<span
+  data-private={isPublic ? undefined : ""}
+  class="{color} whitespace-nowrap {cls}">{display}</span
+>

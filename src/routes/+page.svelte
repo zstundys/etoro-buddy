@@ -133,7 +133,7 @@
       positions={portfolio.positions}
       {trades}
       {candleMap}
-      credit={portfolio.credit}
+      availableCash={portfolio.availableCash}
       {sectorMap}
     />
   </div>

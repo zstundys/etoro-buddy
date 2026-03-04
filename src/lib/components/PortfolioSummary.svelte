@@ -50,7 +50,7 @@
     <p class="text-xs font-medium uppercase tracking-wider text-text-secondary">
       Available
     </p>
-    <p class="text-2xl font-semibold"><Money value={portfolio.credit} /></p>
+    <p class="text-2xl font-semibold"><Money value={portfolio.availableCash} /></p>
   </div>
   <div class="grid gap-3 rounded-xl border border-border bg-surface-raised p-5">
     <p class="text-xs font-medium uppercase tracking-wider text-text-secondary">

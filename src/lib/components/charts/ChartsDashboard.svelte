@@ -22,13 +22,13 @@
     positions,
     trades,
     candleMap = new Map(),
-    credit = 0,
+    availableCash = 0,
     sectorMap = new Map(),
   }: {
     positions: EnrichedPosition[];
     trades: EnrichedTrade[];
     candleMap?: Map<number, Candle[]>;
-    credit?: number;
+    availableCash?: number;
     sectorMap?: Map<number, string>;
   } = $props();
 
@@ -135,7 +135,7 @@
           <PortfolioValueOverTime
             positions={filtered.positions}
             {candleMap}
-            {credit}
+            {availableCash}
             {colorMap}
           />
         </ChartCard>
@@ -175,7 +175,7 @@
         {/snippet}
         <TargetAllocation
           positions={filtered.positions}
-          {credit}
+          {availableCash}
           {candleMap}
           editing={editingBuckets}
           oneditchange={(v) => (editingBuckets = v)}

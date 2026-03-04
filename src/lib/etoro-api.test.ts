@@ -248,3 +248,151 @@ describe("etoro-api caching", () => {
     });
   });
 });
+
+describe("fetchPortfolio – availableCash", () => {
+  beforeEach(() => {
+    mockLocalStorage();
+    vi.restoreAllMocks();
+  });
+
+  function portfolioResponse(overrides: Record<string, unknown> = {}) {
+    return {
+      clientPortfolio: {
+        positions: [
+          {
+            positionID: 1,
+            instrumentID: 1001,
+            openRate: 100,
+            units: 1,
+            amount: 100,
+            isBuy: true,
+            openDateTime: "2025-01-01",
+            leverage: 1,
+            totalFees: 0,
+            initialAmountInDollars: 100,
+          },
+        ],
+        credit: 1000,
+        ordersForOpen: [],
+        orders: [],
+        ...overrides,
+      },
+    };
+  }
+
+  it("availableCash equals credit when no pending orders", async () => {
+    mockFetch({
+      "trading/info/portfolio": portfolioResponse(),
+      "market-data/instruments?": INSTRUMENT_RESPONSE,
+      "instruments/rates?": RATES_RESPONSE,
+    });
+    const { fetchPortfolio } = await freshModule();
+
+    const result = await fetchPortfolio(KEYS);
+    expect(result.credit).toBe(1000);
+    expect(result.availableCash).toBe(1000);
+  });
+
+  it("subtracts manual ordersForOpen (mirrorID=0) from credit", async () => {
+    mockFetch({
+      "trading/info/portfolio": portfolioResponse({
+        ordersForOpen: [
+          { amount: 200, mirrorID: 0 },
+          { amount: 150, mirrorID: 0 },
+        ],
+      }),
+      "market-data/instruments?": INSTRUMENT_RESPONSE,
+      "instruments/rates?": RATES_RESPONSE,
+    });
+    const { fetchPortfolio } = await freshModule();
+
+    const result = await fetchPortfolio(KEYS);
+    expect(result.credit).toBe(1000);
+    expect(result.availableCash).toBe(650);
+  });
+
+  it("excludes mirrored ordersForOpen (mirrorID != 0) from deduction", async () => {
+    mockFetch({
+      "trading/info/portfolio": portfolioResponse({
+        ordersForOpen: [
+          { amount: 200, mirrorID: 0 },
+          { amount: 100, mirrorID: 123 },
+        ],
+      }),
+      "market-data/instruments?": INSTRUMENT_RESPONSE,
+      "instruments/rates?": RATES_RESPONSE,
+    });
+    const { fetchPortfolio } = await freshModule();
+
+    const result = await fetchPortfolio(KEYS);
+    expect(result.availableCash).toBe(800);
+  });
+
+  it("subtracts limit orders from credit", async () => {
+    mockFetch({
+      "trading/info/portfolio": portfolioResponse({
+        orders: [{ amount: 150 }, { amount: 50 }],
+      }),
+      "market-data/instruments?": INSTRUMENT_RESPONSE,
+      "instruments/rates?": RATES_RESPONSE,
+    });
+    const { fetchPortfolio } = await freshModule();
+
+    const result = await fetchPortfolio(KEYS);
+    expect(result.availableCash).toBe(800);
+  });
+
+  it("matches eToro formula: credit - manual ordersForOpen - orders", async () => {
+    mockFetch({
+      "trading/info/portfolio": portfolioResponse({
+        ordersForOpen: [
+          { amount: 200, mirrorID: 0 },
+          { amount: 200, mirrorID: 0 },
+          { amount: 100, mirrorID: 456 },
+        ],
+        orders: [{ amount: 150 }],
+      }),
+      "market-data/instruments?": INSTRUMENT_RESPONSE,
+      "instruments/rates?": RATES_RESPONSE,
+    });
+    const { fetchPortfolio } = await freshModule();
+
+    const result = await fetchPortfolio(KEYS);
+    // 1000 - (200 + 200) - 150 = 450
+    expect(result.availableCash).toBe(450);
+  });
+
+  it("handles empty positions with pending orders", async () => {
+    mockFetch({
+      "trading/info/portfolio": {
+        clientPortfolio: {
+          positions: [],
+          credit: 500,
+          ordersForOpen: [{ amount: 100, mirrorID: 0 }],
+          orders: [{ amount: 50 }],
+        },
+      },
+    });
+    const { fetchPortfolio } = await freshModule();
+
+    const result = await fetchPortfolio(KEYS);
+    expect(result.credit).toBe(500);
+    expect(result.availableCash).toBe(350);
+    expect(result.positions).toEqual([]);
+  });
+
+  it("defaults to credit when ordersForOpen/orders are absent from API", async () => {
+    mockFetch({
+      "trading/info/portfolio": {
+        clientPortfolio: {
+          positions: [],
+          credit: 500,
+        },
+      },
+    });
+    const { fetchPortfolio } = await freshModule();
+
+    const result = await fetchPortfolio(KEYS);
+    expect(result.availableCash).toBe(500);
+  });
+});

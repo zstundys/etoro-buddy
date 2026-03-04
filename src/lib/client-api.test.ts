@@ -25,6 +25,11 @@ const PORTFOLIO_RESPONSE = {
       },
     ],
     credit: 500,
+    ordersForOpen: [
+      { amount: 50, mirrorID: 0 },
+      { amount: 30, mirrorID: 123 },
+    ],
+    orders: [{ amount: 20, mirrorID: 0 }],
   },
 };
 
