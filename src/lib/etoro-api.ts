@@ -573,6 +573,74 @@ export async function fetchWatchlists(keys: ApiKeys): Promise<Watchlist[]> {
   }
 }
 
+export type SearchResult = {
+  instrumentId: number;
+  symbol: string;
+  displayName: string;
+};
+
+const searchCache = createCache<SearchResult | null, string>({
+  keyPrefix: "etoro-search",
+  keyFn: (symbol) => symbol.toUpperCase(),
+});
+
+export async function searchInstrumentBySymbol(
+  keys: ApiKeys,
+  symbol: string,
+): Promise<SearchResult | null> {
+  const upper = symbol.toUpperCase();
+  const cached = searchCache.get(upper);
+  if (cached !== null) return cached;
+
+  try {
+    const params = new URLSearchParams({ internalSymbolFull: upper });
+    const res = await fetch(`${BASE_URL}/market-data/search?${params}`, {
+      headers: buildHeaders(keys),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const items = (json?.items ?? json?.Items ?? []) as Array<
+      Record<string, unknown>
+    >;
+    if (items.length === 0) return null;
+
+    // Prefer exact symbol match; fall back to the first result since the API
+    // already filters by internalSymbolFull
+    const match =
+      items.find((item) => {
+        const sym =
+          (item.internalSymbolFull as string) ??
+          (item.InternalSymbolFull as string) ??
+          "";
+        return sym.toUpperCase() === upper;
+      }) ?? items[0];
+
+    const instrumentId = pick<number>(
+      match,
+      ["instrumentID", "instrumentId", "InstrumentID", "InstrumentId"],
+      0,
+    );
+    if (instrumentId === 0) return null;
+
+    const result: SearchResult = {
+      instrumentId,
+      symbol:
+        (match.internalSymbolFull as string) ??
+        (match.InternalSymbolFull as string) ??
+        upper,
+      displayName:
+        (match.displayname as string) ??
+        (match.displayName as string) ??
+        (match.DisplayName as string) ??
+        upper,
+    };
+    searchCache.set(result, upper);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchWatchlistInstruments(
   keys: ApiKeys,
   instrumentIds: number[],

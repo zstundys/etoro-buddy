@@ -474,7 +474,7 @@
           min="0"
           step="10"
           bind:value={cashAmount}
-          class="w-28 appearance-none rounded border border-border bg-surface-raised py-1 pl-5 pr-2 text-right text-sm tabular-nums text-text-primary [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:border-brand focus:outline-none"
+          class="w-28 rounded border border-border bg-surface-raised py-1 pl-5 pr-2 text-right text-sm tabular-nums text-text-primary focus:border-brand focus:outline-none"
         />
       </div>
     </label>

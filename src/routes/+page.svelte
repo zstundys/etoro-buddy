@@ -1,12 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import PortfolioSummary from "$lib/components/PortfolioSummary.svelte";
   import PositionsTable from "$lib/components/PositionsTable.svelte";
   import BuyingOpportunities from "$lib/components/BuyingOpportunities.svelte";
   import RecentTrades from "$lib/components/RecentTrades.svelte";
   import ChartsDashboard from "$lib/components/charts/ChartsDashboard.svelte";
-  import ApiKeySetup from "$lib/components/ApiKeySetup.svelte";
-  import { createClientApi } from "$lib/client-api.svelte";
+  import { getAppContext } from "$lib/app-context";
   import type {
     PortfolioData,
     EnrichedTrade,
@@ -16,19 +14,27 @@
 
   let { data } = $props();
 
-  const client = createClientApi();
+  const { client, manualStore, merged } = getAppContext();
 
   const useClientData = $derived(client.hasKeys && client.portfolio !== null);
 
   const portfolio = $derived<PortfolioData | null>(
-    useClientData ? client.portfolio : data.portfolio,
+    useClientData || manualStore.holdings.length > 0
+      ? merged.portfolio
+      : data.portfolio,
   );
 
   const trades = $derived<EnrichedTrade[]>(
     useClientData ? client.trades : data.recentTrades,
   );
 
-  const candleMap = $derived<Map<number, Candle[]>>(client.candles);
+  const candleMap = $derived.by<Map<number, Candle[]>>(() => {
+    const map = new Map(client.candles);
+    for (const [id, candles] of merged.candles) {
+      if (!map.has(id)) map.set(id, candles);
+    }
+    return map;
+  });
 
   const activeError = $derived(client.hasKeys ? client.error : data.error);
 
@@ -67,37 +73,7 @@
       client.loadWatchlists();
     }
   });
-
-  onMount(() => {
-    if (client.hasKeys) {
-      client.load();
-    }
-  });
-
-  function handleKeysSubmit(apiKey: string, userKey: string) {
-    client.saveKeys(apiKey, userKey);
-    client.load();
-  }
-
-  function handleKeysClear() {
-    client.clearKeys();
-  }
 </script>
-
-<div class="mb-6 sticky top-2 z-100">
-  <ApiKeySetup
-    onsubmit={handleKeysSubmit}
-    onclear={handleKeysClear}
-    onrefresh={() => client.refresh()}
-    hasKeys={client.hasKeys}
-    error={client.error}
-    loading={client.loading}
-    refreshing={client.refreshing}
-    lastLoaded={client.lastLoaded}
-    fromCache={client.fromCache}
-    compact={hasData && !client.hasKeys}
-  />
-</div>
 
 {#if activeError}
   <div

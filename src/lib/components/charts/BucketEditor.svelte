@@ -40,7 +40,7 @@
                 bucket.id,
                 (e.target as HTMLInputElement).value,
               )}
-            class="w-16 appearance-none rounded border border-border bg-surface-raised px-2 py-1 text-right text-sm tabular-nums text-text-primary [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus:border-brand focus:outline-none"
+            class="w-16 rounded border border-border bg-surface-raised px-2 py-1 text-right text-sm tabular-nums text-text-primary focus:border-brand focus:outline-none"
           />
           <span class="text-xs text-text-secondary">%</span>
         </div>
