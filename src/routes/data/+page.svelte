@@ -29,7 +29,7 @@
     const units = parseFloat(addForm.units);
     const source = addForm.source.trim() || undefined;
 
-    if (!symbol || !buyDate || isNaN(buyPrice) || isNaN(units) || buyPrice <= 0 || units <= 0) return;
+    if (!symbol || !buyDate || isNaN(buyPrice) || isNaN(units) || buyPrice < 0 || units <= 0) return;
 
     manualStore.add({ symbol, buyDate, buyPrice, units, source });
     resetAddForm();
@@ -59,7 +59,7 @@
     const units = parseFloat(editForm.units);
     const source = editForm.source.trim() || undefined;
 
-    if (!symbol || !buyDate || isNaN(buyPrice) || isNaN(units) || buyPrice <= 0 || units <= 0) return;
+    if (!symbol || !buyDate || isNaN(buyPrice) || isNaN(units) || buyPrice < 0 || units <= 0) return;
 
     const existing = manualStore.holdings.find((h) => h.id === editingId);
     const symbolChanged = existing && existing.symbol.toUpperCase() !== symbol;
@@ -89,7 +89,7 @@
 
 <div class="grid gap-y-8">
   <section>
-    <div class="mb-4 flex items-baseline justify-between">
+    <div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
       <h2 class="text-lg font-semibold">eToro Positions</h2>
       {#if etoroPositions.length > 0}
         <span class="text-sm text-text-secondary">
@@ -100,20 +100,49 @@
     </div>
 
     {#if !client.hasKeys}
-      <div class="rounded-xl border border-border bg-surface-raised px-8 py-12 text-center">
+      <div class="rounded-xl border border-border bg-surface-raised px-6 py-10 text-center sm:px-8 sm:py-12">
         <p class="text-sm text-text-secondary">No eToro API keys configured. Add them above to see your eToro positions here.</p>
       </div>
     {:else if client.loading}
-      <div class="flex items-center justify-center gap-3 rounded-xl border border-border bg-surface-raised px-8 py-12">
+      <div class="flex items-center justify-center gap-3 rounded-xl border border-border bg-surface-raised px-6 py-10 sm:px-8 sm:py-12">
         <div class="h-5 w-5 animate-spin rounded-full border-2 border-brand/30 border-t-brand"></div>
         <p class="text-sm text-text-secondary">Loading...</p>
       </div>
     {:else if etoroPositions.length === 0}
-      <div class="rounded-xl border border-border bg-surface-raised px-8 py-12 text-center">
+      <div class="rounded-xl border border-border bg-surface-raised px-6 py-10 text-center sm:px-8 sm:py-12">
         <p class="text-sm text-text-secondary">No open positions on eToro</p>
       </div>
     {:else}
-      <div class="rounded-xl border border-border bg-surface-raised">
+      <!-- Mobile: card layout -->
+      <div class="flex flex-col gap-2 sm:hidden">
+        {#each etoroPositions as pos, i (pos.positionId || i)}
+          <div class="rounded-xl border border-border bg-surface-raised px-4 py-3">
+            <div class="mb-2 flex items-baseline justify-between">
+              <span class="text-sm font-medium">{normalizeSymbol(pos.symbol ?? `#${pos.instrumentId}`)}</span>
+              <span class="text-xs text-text-secondary">{dateFmt.format(new Date(pos.openDateTime))}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              <div class="text-text-secondary">Buy Price</div>
+              <div class="text-right tabular-nums"><Money value={pos.openRate} public /></div>
+              <div class="text-text-secondary">Units</div>
+              <div class="text-right tabular-nums"><span data-private>{pos.units.toFixed(4)}</span></div>
+              <div class="text-text-secondary">Invested</div>
+              <div class="text-right tabular-nums font-medium"><Money value={pos.amount} /></div>
+              <div class="text-text-secondary">Current</div>
+              <div class="text-right tabular-nums">
+                {#if pos.currentRate !== undefined}
+                  <Money value={pos.currentRate} public />
+                {:else}
+                  <span class="text-text-secondary">--</span>
+                {/if}
+              </div>
+            </div>
+          </div>
+        {/each}
+      </div>
+
+      <!-- Desktop: table layout -->
+      <div class="hidden sm:block rounded-xl border border-border bg-surface-raised">
         <div class="max-h-80 overflow-auto">
           <table class="w-full text-sm">
             <thead class="sticky top-0 bg-surface-raised">
@@ -161,7 +190,7 @@
   </section>
 
   <section>
-    <div class="mb-4 flex items-baseline justify-between">
+    <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
       <h2 class="text-lg font-semibold">Manual Holdings</h2>
       <div class="flex items-center gap-3">
         {#if manualStore.holdings.length > 0}
@@ -182,7 +211,7 @@
     </div>
 
     {#if manualStore.holdings.length === 0 && !showAddForm}
-      <div class="rounded-xl border border-border bg-surface-raised px-8 py-12 text-center">
+      <div class="rounded-xl border border-border bg-surface-raised px-6 py-10 text-center sm:px-8 sm:py-12">
         <p class="mb-3 text-sm text-text-secondary">No manual holdings yet</p>
         <button
           onclick={() => { showAddForm = true; resetAddForm(); }}
@@ -192,7 +221,119 @@
         </button>
       </div>
     {:else}
-      <div class="overflow-x-auto rounded-xl border border-border bg-surface-raised">
+      <!-- Mobile: card layout -->
+      <div class="flex flex-col gap-2 sm:hidden">
+        {#each manualStore.holdings as h (h.id)}
+          {#if editingId === h.id}
+            <div class="rounded-xl border border-brand/30 bg-surface-raised p-4">
+              <div class="grid grid-cols-2 gap-3">
+                <label class="block">
+                  <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Symbol</span>
+                  <input type="text" bind:value={editForm.symbol} class="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs uppercase" placeholder="AAPL" />
+                </label>
+                <label class="block">
+                  <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Date</span>
+                  <input type="date" bind:value={editForm.buyDate} class="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs" />
+                </label>
+                <label class="block">
+                  <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Buy Price</span>
+                  <input type="number" bind:value={editForm.buyPrice} step="0.01" min="0" class="w-full rounded border border-border bg-surface px-2 py-1.5 text-right text-xs tabular-nums" placeholder="0.00" />
+                </label>
+                <label class="block">
+                  <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Units</span>
+                  <input type="number" bind:value={editForm.units} step="0.0001" min="0" class="w-full rounded border border-border bg-surface px-2 py-1.5 text-right text-xs tabular-nums" placeholder="0" />
+                </label>
+                <label class="col-span-2 block">
+                  <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Source</span>
+                  <input type="text" bind:value={editForm.source} class="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs" placeholder="Broker" />
+                </label>
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <div class="text-xs text-text-secondary">
+                  Invested:
+                  {#if !isNaN(parseFloat(editForm.buyPrice)) && !isNaN(parseFloat(editForm.units))}
+                    <Money value={parseFloat(editForm.buyPrice) * parseFloat(editForm.units)} />
+                  {:else}
+                    --
+                  {/if}
+                </div>
+                <div class="flex gap-2">
+                  <button onclick={cancelEdit} class="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary">Cancel</button>
+                  <button onclick={saveEdit} class="rounded-lg bg-gain/15 px-3 py-1.5 text-xs font-medium text-gain transition-colors hover:bg-gain/25">Save</button>
+                </div>
+              </div>
+            </div>
+          {:else}
+            <div class="rounded-xl border border-border bg-surface-raised px-4 py-3">
+              <div class="mb-2 flex items-baseline justify-between">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-sm font-medium">{h.symbol}</span>
+                  {#if h.source}
+                    <span class="text-xs text-text-secondary">{h.source}</span>
+                  {/if}
+                </div>
+                <span class="text-xs text-text-secondary">{dateFmt.format(new Date(h.buyDate))}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <div class="text-text-secondary">Buy Price</div>
+                <div class="text-right tabular-nums">{currency.format(h.buyPrice)}</div>
+                <div class="text-text-secondary">Units</div>
+                <div class="text-right tabular-nums"><span data-private>{h.units.toFixed(4)}</span></div>
+                <div class="text-text-secondary">Invested</div>
+                <div class="text-right tabular-nums font-medium"><Money value={h.buyPrice * h.units} /></div>
+              </div>
+              <div class="mt-2 flex justify-end gap-2 border-t border-border/20 pt-2">
+                <button onclick={() => startEdit(h)} class="rounded px-2.5 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-surface-overlay hover:text-text-primary">Edit</button>
+                <button onclick={() => handleDelete(h.id)} class="rounded px-2.5 py-1 text-[11px] font-medium text-loss/70 transition-colors hover:bg-loss/10 hover:text-loss">Delete</button>
+              </div>
+            </div>
+          {/if}
+        {/each}
+
+        {#if showAddForm}
+          <div class="rounded-xl border border-brand/30 bg-brand/5 p-4">
+            <div class="grid grid-cols-2 gap-3">
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Symbol</span>
+                <input type="text" bind:value={addForm.symbol} class="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs uppercase" placeholder="AAPL" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Date</span>
+                <input type="date" bind:value={addForm.buyDate} class="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Buy Price</span>
+                <input type="number" bind:value={addForm.buyPrice} step="0.01" min="0" class="w-full rounded border border-border bg-surface px-2 py-1.5 text-right text-xs tabular-nums" placeholder="0.00" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Units</span>
+                <input type="number" bind:value={addForm.units} step="0.0001" min="0" class="w-full rounded border border-border bg-surface px-2 py-1.5 text-right text-xs tabular-nums" placeholder="0" />
+              </label>
+              <label class="col-span-2 block">
+                <span class="mb-1 block text-[10px] font-medium uppercase tracking-wider text-text-secondary">Source</span>
+                <input type="text" bind:value={addForm.source} class="w-full rounded border border-border bg-surface px-2 py-1.5 text-xs" placeholder="Broker" />
+              </label>
+            </div>
+            <div class="mt-3 flex items-center justify-between">
+              <div class="text-xs text-text-secondary">
+                Invested:
+                {#if !isNaN(parseFloat(addForm.buyPrice)) && !isNaN(parseFloat(addForm.units)) && parseFloat(addForm.buyPrice) >= 0 && parseFloat(addForm.units) > 0}
+                  <Money value={parseFloat(addForm.buyPrice) * parseFloat(addForm.units)} />
+                {:else}
+                  --
+                {/if}
+              </div>
+              <div class="flex gap-2">
+                <button onclick={() => { showAddForm = false; }} class="rounded-lg border border-border px-3 py-1.5 text-xs text-text-secondary transition-colors hover:text-text-primary">Cancel</button>
+                <button onclick={handleAdd} class="rounded-lg bg-brand/15 px-3 py-1.5 text-xs font-medium text-brand transition-colors hover:bg-brand/25">Add</button>
+              </div>
+            </div>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Desktop: table layout -->
+      <div class="hidden sm:block overflow-x-auto rounded-xl border border-border bg-surface-raised">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-border/50 text-[10px] font-medium uppercase tracking-wider text-text-secondary">
@@ -350,7 +491,7 @@
                   />
                 </td>
                 <td class="px-3 py-2 text-right tabular-nums text-text-secondary">
-                  {#if !isNaN(parseFloat(addForm.buyPrice)) && !isNaN(parseFloat(addForm.units)) && parseFloat(addForm.buyPrice) > 0 && parseFloat(addForm.units) > 0}
+                  {#if !isNaN(parseFloat(addForm.buyPrice)) && !isNaN(parseFloat(addForm.units)) && parseFloat(addForm.buyPrice) >= 0 && parseFloat(addForm.units) > 0}
                     <Money value={parseFloat(addForm.buyPrice) * parseFloat(addForm.units)} />
                   {:else}
                     --
@@ -389,22 +530,22 @@
   </section>
 
   {#if etoroPositions.length > 0 || manualStore.holdings.length > 0}
-    <section class="rounded-xl border border-border bg-surface-raised p-5">
+    <section class="rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <h3 class="mb-3 text-sm font-medium text-text-secondary">Combined Summary</h3>
-      <div class="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+      <div class="grid grid-cols-1 gap-2 text-sm sm:flex sm:flex-wrap sm:gap-x-8 sm:gap-y-2">
         {#if etoroPositions.length > 0}
-          <div>
+          <div class="flex justify-between sm:block">
             <span class="text-text-secondary">eToro:</span>
             <span class="ml-1 font-medium"><Money value={etoroTotalInvested} /></span>
           </div>
         {/if}
         {#if manualStore.holdings.length > 0}
-          <div>
+          <div class="flex justify-between sm:block">
             <span class="text-text-secondary">Manual:</span>
             <span class="ml-1 font-medium"><Money value={manualTotalInvested} /></span>
           </div>
         {/if}
-        <div>
+        <div class="flex justify-between border-t border-border/30 pt-2 sm:border-0 sm:pt-0">
           <span class="text-text-secondary">Total invested:</span>
           <span class="ml-1 font-semibold">
             <Money value={etoroTotalInvested + manualTotalInvested} />
