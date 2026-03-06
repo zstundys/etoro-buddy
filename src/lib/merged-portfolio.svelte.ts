@@ -105,6 +105,7 @@ export function createMergedPortfolio(
           fetchRates(keys, instrumentIds),
           fetchAllCandles(keys, instrumentIds, 250),
         ]);
+
         const rateMap = new Map<number, number>();
         for (const r of rates) {
           rateMap.set(r.instrumentId, r.bid);

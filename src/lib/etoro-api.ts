@@ -50,11 +50,7 @@ const PositionSchema = z.record(z.string(), z.unknown()).transform((raw) => ({
 const PendingOrderSchema = z
   .record(z.string(), z.unknown())
   .transform((raw) => ({
-    orderId: pick<number>(
-      raw,
-      ["orderID", "orderId", "OrderID", "OrderId"],
-      0,
-    ),
+    orderId: pick<number>(raw, ["orderID", "orderId", "OrderID", "OrderId"], 0),
     instrumentId: pick<number>(
       raw,
       ["instrumentID", "instrumentId", "InstrumentID", "InstrumentId"],
@@ -397,8 +393,12 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
   }
 
   const parsed = PortfolioResponseSchema.parse(await portfolioRes.json());
-  const { positions: rawPositions, credit, ordersForOpen, orders } =
-    parsed.clientPortfolio;
+  const {
+    positions: rawPositions,
+    credit,
+    ordersForOpen,
+    orders,
+  } = parsed.clientPortfolio;
 
   const pendingManualOrders = ordersForOpen
     .filter((o) => o.mirrorId === 0)
@@ -452,7 +452,14 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
     };
   });
 
-  return { positions, pendingOrders, credit, availableCash, totalInvested, totalPnl };
+  return {
+    positions,
+    pendingOrders,
+    credit,
+    availableCash,
+    totalInvested,
+    totalPnl,
+  };
 }
 
 export async function fetchTradeHistory(
@@ -493,6 +500,11 @@ export async function fetchTradeHistory(
   });
 }
 
+const candlesCache = createCache<Candle[], string>({
+  keyPrefix: "etoro-candles-v2",
+  keyFn: (k) => k,
+});
+
 export async function fetchCandles(
   keys: ApiKeys,
   instrumentId: number,
@@ -500,6 +512,10 @@ export async function fetchCandles(
   direction: "asc" | "desc" = "asc",
   interval: string = "OneDay",
 ): Promise<Candle[]> {
+  const cacheKey = `${instrumentId}-${direction}-${interval}-${count}`;
+  const cached = candlesCache.get(cacheKey);
+  if (cached && cached.length > 0) return cached;
+
   try {
     const res = await fetch(
       `${BASE_URL}/market-data/instruments/${instrumentId}/history/candles/${direction}/${interval}/${count}`,
@@ -508,7 +524,9 @@ export async function fetchCandles(
     if (!res.ok) return [];
     const json = await res.json();
     const nested = json?.candles?.[0]?.candles ?? json?.candles ?? [];
-    return safeParseArray(CandleSchema, nested);
+    const result = safeParseArray(CandleSchema, nested);
+    if (result.length > 0) candlesCache.set(result, cacheKey);
+    return result;
   } catch {
     return [];
   }

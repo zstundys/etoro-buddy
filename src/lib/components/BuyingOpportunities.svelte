@@ -12,6 +12,7 @@
     selectedSource = "portfolio",
     watchlistLoading = false,
     onSourceChange,
+    positionDates = new Map(),
   }: {
     instruments: InstrumentSnapshot[];
     candleMap?: Map<number, Candle[]>;
@@ -19,6 +20,7 @@
     selectedSource?: string;
     watchlistLoading?: boolean;
     onSourceChange?: (source: string) => void;
+    positionDates?: Map<number, { date: string; label?: string; price?: number; units?: number; amount?: number }[]>;
   } = $props();
 
   type OpportunityRow = {
@@ -366,6 +368,7 @@
                         )}
                         width={80}
                         height={32}
+                        markers={positionDates.get(row.instrumentId) ?? []}
                       />
                     </div>
                   </div>

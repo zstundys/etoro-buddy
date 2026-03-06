@@ -10,5 +10,5 @@ SvelteKit app for eToro portfolio management.
 - `bun run <script>` instead of `npm run` / `pnpm run` / `yarn run`
 - `bunx <package>` instead of `npx`
 - `bun <file>` instead of `node <file>` or `ts-node <file>`
-- `bun test` instead of `jest` or `vitest`
+- `bun run test` instead of `jest` or `bun test`
 - `bun build` instead of webpack, esbuild, or vite

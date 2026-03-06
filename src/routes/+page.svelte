@@ -56,6 +56,26 @@
       : client.watchlistCandles,
   );
 
+  type PositionMarker = { date: string; label?: string; price?: number; units?: number; amount?: number };
+
+  const positionDates = $derived.by(() => {
+    const map = new Map<number, PositionMarker[]>();
+    if (!portfolio) return map;
+    for (const p of portfolio.positions) {
+      const marker: PositionMarker = {
+        date: p.openDateTime,
+        label: p.isBuy ? "BUY" : "SELL",
+        price: p.openRate,
+        units: p.units,
+        amount: p.amount,
+      };
+      const arr = map.get(p.instrumentId);
+      if (arr) arr.push(marker);
+      else map.set(p.instrumentId, [marker]);
+    }
+    return map;
+  });
+
   $effect(() => {
     if (
       client.portfolio &&
@@ -102,6 +122,7 @@
       selectedSource={client.opportunitySource}
       watchlistLoading={client.watchlistLoading}
       onSourceChange={client.setOpportunitySource}
+      {positionDates}
     />
     <RecentTrades {trades} positions={portfolio.positions} pendingOrders={portfolio.pendingOrders} />
     <PositionsTable positions={portfolio.positions} {candleMap} />

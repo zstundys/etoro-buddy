@@ -41,39 +41,6 @@ function setStoredSource(source: string) {
 const portfolioCache = createCache<PortfolioData>({ key: "etoro-portfolio" });
 const tradesCache = createCache<EnrichedTrade[]>({ key: "etoro-trades" });
 
-function serializeCandleMap(m: Map<number, Candle[]>): string {
-  return JSON.stringify(Object.fromEntries(m));
-}
-
-function deserializeCandleMap(raw: string): Map<number, Candle[]> | null {
-  try {
-    const obj = JSON.parse(raw) as Record<string, unknown>;
-    const map = new Map<number, Candle[]>();
-    for (const [k, v] of Object.entries(obj)) {
-      if (Array.isArray(v) && v.length > 0) {
-        const id = Number(k);
-        if (!isNaN(id)) map.set(id, v as Candle[]);
-      }
-    }
-    return map.size > 0 ? map : null;
-  } catch {
-    return null;
-  }
-}
-
-const candlesCache = createCache<Map<number, Candle[]>>({
-  key: "etoro-candles",
-  serialize: serializeCandleMap,
-  deserialize: deserializeCandleMap,
-});
-
-const watchlistCandlesCache = createCache<Map<number, Candle[]>, string>({
-  keyPrefix: "etoro-watchlist-candles",
-  keyFn: (id) => id,
-  serialize: serializeCandleMap,
-  deserialize: deserializeCandleMap,
-});
-
 const ENV_FALLBACK_KEYS: ApiKeys | null =
   env.PUBLIC_ETORO_API_KEY && env.PUBLIC_ETORO_USER_KEY
     ? { apiKey: env.PUBLIC_ETORO_API_KEY, userKey: env.PUBLIC_ETORO_USER_KEY }
@@ -214,25 +181,11 @@ export function createClientApi() {
     const ids = [...new Set(portfolio.positions.map((p) => p.instrumentId))];
     if (ids.length === 0) return;
     candlesLoadAttempted = true;
-    const cached = candlesCache.get();
-    const cacheCoversIds =
-      cached &&
-      ids.every((id) => cached.has(id) && (cached.get(id)?.length ?? 0) >= 2);
-    if (cacheCoversIds) {
-      candles = new Map(cached);
-      candlesLoading = false;
-      return;
-    }
-    if (cached && cached.size > 0) {
-      candles = new Map(cached);
-    }
     candlesLoading = true;
     try {
-      const fresh = await fetchAllCandles(keys, ids, 250);
-      candles = fresh;
-      candlesCache.set(fresh);
+      candles = await fetchAllCandles(keys, ids, 250);
     } catch {
-      // non-critical — charts use cached data if available
+      /* non-critical */
     } finally {
       candlesLoading = false;
     }
@@ -277,14 +230,9 @@ export function createClientApi() {
     if (!keys || watchlistLoading) return;
     const wl = watchlists.find((w) => w.id === watchlistId);
     if (!wl || wl.instrumentIds.length === 0) return;
-    const cached = watchlistCandlesCache.get(watchlistId);
-    if (cached && cached.size > 0) {
-      watchlistCandles = new Map(cached);
-    } else {
-      watchlistCandles = new Map();
-    }
     watchlistLoading = true;
     watchlistInstruments = [];
+    watchlistCandles = new Map();
     try {
       const instruments = await fetchWatchlistInstruments(
         keys,
@@ -292,30 +240,12 @@ export function createClientApi() {
       );
       watchlistInstruments = instruments;
       const ids = instruments.map((i) => i.instrumentId);
-      if (ids.length === 0) {
-        watchlistCandles = new Map();
-        return;
-      }
-      const cacheCoversIds =
-        cached &&
-        ids.every((id) => cached.has(id) && (cached.get(id)?.length ?? 0) >= 2);
-      if (cacheCoversIds) {
-        watchlistCandles = new Map(cached);
-      } else {
-        if (cached && cached.size > 0) {
-          watchlistCandles = new Map(cached);
-        }
-        const fresh = await fetchAllCandles(keys, ids, 250);
-        watchlistCandles = fresh;
-        watchlistCandlesCache.set(fresh, watchlistId);
+      if (ids.length > 0) {
+        watchlistCandles = await fetchAllCandles(keys, ids, 250);
       }
     } catch {
       watchlistInstruments = [];
-      if (cached && cached.size > 0) {
-        watchlistCandles = new Map(cached);
-      } else {
-        watchlistCandles = new Map();
-      }
+      watchlistCandles = new Map();
     } finally {
       watchlistLoading = false;
     }

@@ -4,15 +4,18 @@
   import Money from "../Money.svelte";
 
   type DataPoint = { date: string; value: number };
+  type Marker = { date: string; label?: string; amount?: number; units?: number; price?: number };
 
   let {
     data,
     width = 100,
     height = 28,
+    markers = [],
   }: {
     data: DataPoint[];
     width?: number;
     height?: number;
+    markers?: (string | Marker)[];
   } = $props();
 
   const uid = `sparkline-${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
@@ -67,6 +70,37 @@
       : COLORS.loss,
   );
 
+  function toDateKey(s: string): string {
+    return s.slice(0, 10);
+  }
+
+  function normalizeMarker(m: string | Marker): Marker {
+    return typeof m === "string" ? { date: m } : m;
+  }
+
+  const markerMap = $derived.by(() => {
+    const map = new Map<string, Marker[]>();
+    for (const raw of markers) {
+      const m = normalizeMarker(raw);
+      const key = toDateKey(m.date);
+      const arr = map.get(key);
+      if (arr) arr.push(m);
+      else map.set(key, [m]);
+    }
+    return map;
+  });
+
+  const markerPoints = $derived.by(() => {
+    if (!scales || markerMap.size === 0) return [];
+    const pts: { cx: number; cy: number }[] = [];
+    for (let i = 0; i < data.length; i++) {
+      if (markerMap.has(toDateKey(data[i].date))) {
+        pts.push({ cx: scales.xScale(i), cy: scales.yScale(data[i].value) });
+      }
+    }
+    return pts;
+  });
+
   const hoverPoint = $derived.by(() => {
     if (hoverIndex === null || !scales) return null;
     const d = data[hoverIndex];
@@ -76,6 +110,8 @@
     const days = Math.round(
       (new Date(d.date).getTime() - new Date(data[0].date).getTime()) / msPerDay,
     );
+    const dateKey = toDateKey(d.date);
+    const markerInfo = markerMap.get(dateKey);
     return {
       cx: scales.xScale(hoverIndex),
       cy: scales.yScale(d.value),
@@ -83,6 +119,8 @@
       value: d.value,
       pct,
       days,
+      isMarker: !!markerInfo,
+      markers: markerInfo ?? [],
     };
   });
 
@@ -243,6 +281,9 @@
       />
     {/if}
     <path d={path} fill="none" stroke={color} stroke-width="1.5" />
+    {#each markerPoints as m}
+      <circle cx={m.cx} cy={m.cy} r="2" fill={COLORS.brand} stroke="var(--color-surface)" stroke-width="1" />
+    {/each}
     {#if hoverPoint && dragStartIndex === null}
       <circle cx={hoverPoint.cx} cy={hoverPoint.cy} r="2.5" fill={color} />
     {/if}
@@ -270,17 +311,33 @@
     </div>
   {:else if hoverPoint}
     <div
-      class="fixed whitespace-nowrap rounded-md border border-border bg-surface-raised px-2 py-1 text-[10px] shadow-lg pointer-events-none"
+      class="fixed rounded-md border border-border bg-surface-raised px-2 py-1 text-[10px] shadow-lg pointer-events-none"
       style="left: {mouseX + 10}px; top: {mouseY - 32}px; z-index: 9999"
     >
-      <span class="text-text-secondary">{hoverPoint.date}</span>
-      <span class="ml-1 font-medium text-text-primary"
-        ><Money value={hoverPoint.value} public /></span
-      >
-      <span class="ml-1 {hoverPoint.pct >= 0 ? 'text-gain' : 'text-loss'}"
-        >{hoverPoint.pct >= 0 ? "+" : ""}{hoverPoint.pct.toFixed(1)}%</span
-      >
-      <span class="ml-1 text-text-secondary">{hoverPoint.days}d</span>
+      <div class="flex items-center gap-1 whitespace-nowrap">
+        {#if hoverPoint.isMarker}
+          <span class="inline-block h-1.5 w-1.5 rounded-full bg-brand shrink-0"></span>
+        {/if}
+        <span class="text-text-secondary">{hoverPoint.date}</span>
+        <span class="font-medium text-text-primary"
+          ><Money value={hoverPoint.value} public /></span
+        >
+        <span class="{hoverPoint.pct >= 0 ? 'text-gain' : 'text-loss'}"
+          >{hoverPoint.pct >= 0 ? "+" : ""}{hoverPoint.pct.toFixed(1)}%</span
+        >
+        <span class="text-text-secondary">{hoverPoint.days}d</span>
+      </div>
+      {#each hoverPoint.markers as m}
+        {@const hasDetail = m.label || m.amount !== undefined || m.units !== undefined || m.price !== undefined}
+        {#if hasDetail}
+          <div class="flex items-center gap-1 whitespace-nowrap border-t border-border/30 pt-0.5 mt-0.5 text-brand">
+            {#if m.label}<span class="font-medium">{m.label}</span>{/if}
+            {#if m.price !== undefined}<span class="text-text-secondary">@</span><Money value={m.price} public />{/if}
+            {#if m.units !== undefined}<span class="text-text-secondary">×</span><span data-private>{m.units.toFixed(m.units % 1 === 0 ? 0 : 4)}</span>{/if}
+            {#if m.amount !== undefined}<span class="text-text-secondary">=</span><Money value={m.amount} />{/if}
+          </div>
+        {/if}
+      {/each}
     </div>
   {/if}
 {:else}

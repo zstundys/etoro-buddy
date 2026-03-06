@@ -640,6 +640,7 @@
                               data={sd}
                               width={64}
                               height={28}
+                              markers={[{ date: pos.openDateTime, label: pos.isBuy ? "BUY" : "SELL", price: pos.openRate, units: pos.units, amount: pos.amount }]}
                             /></span
                           >
                         {/if}
@@ -737,6 +738,7 @@
             {@const groupSparkline = sparklineData(
               group.months[0]?.positions[0]?.instrumentId ?? 0,
             )}
+            {@const groupMarkers = group.months.flatMap((m) => m.positions.map((p) => ({ date: p.openDateTime, label: p.isBuy ? "BUY" : "SELL", price: p.openRate, units: p.units, amount: p.amount })))}
             <div
               class="col-span-full grid grid-cols-subgrid overflow-hidden rounded-xl border border-border bg-surface-raised"
             >
@@ -805,7 +807,7 @@
                     class="relative flex items-center px-2 col-span-3 justify-center"
                   >
                     <div class="hidden sm:block -my-2">
-                      <Sparkline data={groupSparkline} width={120} height={36} />
+                      <Sparkline data={groupSparkline} width={120} height={36} markers={groupMarkers} />
                     </div>
                   </div>
                 {:else}
