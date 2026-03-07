@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { ApiKeys } from "./etoro-api";
 
-const KEYS: ApiKeys = { apiKey: "test-api-key", userKey: "test-user-key" };
+const KEYS: ApiKeys = { apiKey: "test-api-key", userKey: "test-user-key", mode: "real" };
 
 function mockLocalStorage() {
   const store = new Map<string, string>();

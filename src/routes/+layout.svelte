@@ -28,7 +28,8 @@
     }
   });
 
-  function handleKeysSubmitAndResolve(apiKey: string, userKey: string) {
+  function handleKeysSubmitAndResolve(apiKey: string, userKey: string, mode: import("$lib/etoro-api").AccountMode) {
+    client.setMode(mode);
     client.saveKeys(apiKey, userKey);
     client.load().then(() => {
       if (manualStore.holdings.length > 0) {
@@ -181,6 +182,7 @@
         lastLoaded={client.lastLoaded}
         fromCache={client.fromCache}
         compact={hasData && !client.hasKeys}
+        mode={client.accountMode}
       />
     </div>
 

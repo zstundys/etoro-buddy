@@ -1,10 +1,11 @@
 import { json } from "@sveltejs/kit";
-import { fetchTradeHistory } from "$lib/etoro-api";
+import { fetchTradeHistory, type AccountMode } from "$lib/etoro-api";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ request, url }) => {
   const apiKey = request.headers.get("x-etoro-api-key");
   const userKey = request.headers.get("x-etoro-user-key");
+  const mode = (request.headers.get("x-etoro-mode") ?? "real") as AccountMode;
 
   if (!apiKey || !userKey) {
     return json({ error: "Missing API keys" }, { status: 400 });
@@ -13,7 +14,7 @@ export const GET: RequestHandler = async ({ request, url }) => {
   const days = Number(url.searchParams.get("days") ?? 90);
 
   try {
-    const trades = await fetchTradeHistory({ apiKey, userKey }, days);
+    const trades = await fetchTradeHistory({ apiKey, userKey, mode }, days);
     return json(trades);
   } catch (e) {
     const message =

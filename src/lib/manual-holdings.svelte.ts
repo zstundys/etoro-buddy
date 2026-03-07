@@ -56,6 +56,7 @@ export function toEnrichedPosition(
     leverage: 1,
     totalFees: 0,
     initialAmountInDollars: amount,
+    mirrorId: 0,
     symbol: h.symbol,
     displayName: h.symbol,
     logoUrl,

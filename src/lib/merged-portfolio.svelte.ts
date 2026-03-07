@@ -98,6 +98,7 @@ export function createMergedPortfolio(
           pendingOrders: includeEtoro
             ? (client.portfolio?.pendingOrders ?? [])
             : [],
+          mirrors: includeEtoro ? (client.portfolio?.mirrors ?? []) : [],
           credit: includeEtoro ? (client.portfolio?.credit ?? 0) : 0,
           availableCash: includeEtoro
             ? (client.portfolio?.availableCash ?? 0)

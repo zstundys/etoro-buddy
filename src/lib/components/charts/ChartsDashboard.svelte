@@ -139,6 +139,7 @@
             {colorMap}
             dateStart={filterStart ?? undefined}
             dateEnd={filterEnd ?? undefined}
+            onrangeselect={onFilterChange}
           />
         </ChartCard>
       {:else}

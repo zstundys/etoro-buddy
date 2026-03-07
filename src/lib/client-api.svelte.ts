@@ -9,6 +9,7 @@ import {
   type PortfolioData,
   type EnrichedTrade,
   type ApiKeys,
+  type AccountMode,
   type Candle,
   type Watchlist,
   type InstrumentSnapshot,
@@ -17,6 +18,7 @@ import { createCache, invalidateAll } from "./api-cache";
 import { env } from "$env/dynamic/public";
 
 const STORAGE_KEY = "etoro-api-keys";
+const ACCOUNT_MODE_KEY = "etoro-account-mode";
 const LAST_LOADED_KEY = "etoro-last-loaded";
 const OPPORTUNITY_SOURCE_KEY = "etoro-buying-opportunities-source";
 
@@ -41,28 +43,53 @@ function setStoredSource(source: string) {
 const portfolioCache = createCache<PortfolioData>({ key: "etoro-portfolio" });
 const tradesCache = createCache<EnrichedTrade[]>({ key: "etoro-trades" });
 
-const ENV_FALLBACK_KEYS: ApiKeys | null =
+function readAccountMode(): AccountMode {
+  if (typeof localStorage === "undefined") return "real";
+  try {
+    const raw = localStorage.getItem(ACCOUNT_MODE_KEY);
+    return raw === "demo" ? "demo" : "real";
+  } catch {
+    return "real";
+  }
+}
+
+function writeAccountMode(mode: AccountMode) {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(ACCOUNT_MODE_KEY, mode);
+  } catch {
+    /* ignore */
+  }
+}
+
+const ENV_FALLBACK_KEYS: Omit<ApiKeys, "mode"> | null =
   env.PUBLIC_ETORO_API_KEY && env.PUBLIC_ETORO_USER_KEY
     ? { apiKey: env.PUBLIC_ETORO_API_KEY, userKey: env.PUBLIC_ETORO_USER_KEY }
     : null;
 
 function readKeys(): ApiKeys | null {
-  if (typeof localStorage === "undefined") return ENV_FALLBACK_KEYS;
+  const mode = readAccountMode();
+  if (typeof localStorage === "undefined") {
+    return ENV_FALLBACK_KEYS ? { ...ENV_FALLBACK_KEYS, mode } : null;
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return ENV_FALLBACK_KEYS;
+    if (!raw) {
+      return ENV_FALLBACK_KEYS ? { ...ENV_FALLBACK_KEYS, mode } : null;
+    }
     const parsed = JSON.parse(raw);
-    if (parsed?.apiKey && parsed?.userKey) return parsed;
-    return ENV_FALLBACK_KEYS;
+    if (parsed?.apiKey && parsed?.userKey) return { ...parsed, mode };
+    return ENV_FALLBACK_KEYS ? { ...ENV_FALLBACK_KEYS, mode } : null;
   } catch {
-    return ENV_FALLBACK_KEYS;
+    return ENV_FALLBACK_KEYS ? { ...ENV_FALLBACK_KEYS, mode } : null;
   }
 }
 
 function writeKeys(keys: ApiKeys | null) {
   if (typeof localStorage === "undefined") return;
   if (keys) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+    const { mode: _, ...rest } = keys;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
   } else {
     localStorage.removeItem(STORAGE_KEY);
   }
@@ -93,11 +120,13 @@ export function createClientApi() {
         ...rawCached,
         availableCash: rawCached.availableCash ?? rawCached.credit,
         pendingOrders: rawCached.pendingOrders ?? [],
+        mirrors: rawCached.mirrors ?? [],
       }
     : null;
   const cachedTrades = hasApiKeys ? tradesCache.get() : null;
 
   let keys = $state<ApiKeys | null>(readKeys());
+  let accountMode = $state<AccountMode>(readAccountMode());
   let portfolio = $state<PortfolioData | null>(cachedPortfolio);
   let trades = $state<EnrichedTrade[]>(cachedTrades ?? []);
   let loading = $state(false);
@@ -122,7 +151,11 @@ export function createClientApi() {
   const hasKeys = $derived(keys !== null);
 
   function saveKeys(apiKey: string, userKey: string) {
-    const newKeys = { apiKey: apiKey.trim(), userKey: userKey.trim() };
+    const newKeys: ApiKeys = {
+      apiKey: apiKey.trim(),
+      userKey: userKey.trim(),
+      mode: accountMode,
+    };
     writeKeys(newKeys);
     keys = newKeys;
   }
@@ -130,6 +163,32 @@ export function createClientApi() {
   function clearKeys() {
     writeKeys(null);
     keys = null;
+    portfolio = null;
+    trades = [];
+    error = null;
+    lastLoaded = null;
+    writeLastLoaded(null);
+    invalidateAll();
+    opportunitySource = "portfolio";
+    hasAppliedStoredSource = false;
+    watchlists = [];
+    watchlistsLoaded = false;
+    watchlistInstruments = [];
+    watchlistCandles = new Map();
+    candles = new Map();
+    candlesLoadAttempted = false;
+    sectorMap = new Map();
+    sectorMapLoaded = false;
+    setStoredSource("portfolio");
+  }
+
+  function setMode(mode: AccountMode) {
+    if (mode === accountMode) return;
+    accountMode = mode;
+    writeAccountMode(mode);
+    if (keys) {
+      keys = { ...keys, mode };
+    }
     portfolio = null;
     trades = [];
     error = null;
@@ -336,6 +395,9 @@ export function createClientApi() {
     get hasKeys() {
       return hasKeys;
     },
+    get accountMode() {
+      return accountMode;
+    },
     get portfolio() {
       return portfolio;
     },
@@ -383,6 +445,7 @@ export function createClientApi() {
     },
     saveKeys,
     clearKeys,
+    setMode,
     load,
     loadCandles,
     loadSectorMap,

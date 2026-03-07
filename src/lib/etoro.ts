@@ -13,13 +13,18 @@ export type {
   EnrichedTrade,
   PortfolioData,
   ApiKeys,
+  AccountMode,
 } from "./etoro-api";
 
 function envKeys() {
   if (!env.ETORO_API_KEY || !env.ETORO_USER_KEY) {
     throw new Error("Missing ETORO_API_KEY or ETORO_USER_KEY in .env");
   }
-  return { apiKey: env.ETORO_API_KEY, userKey: env.ETORO_USER_KEY };
+  return {
+    apiKey: env.ETORO_API_KEY,
+    userKey: env.ETORO_USER_KEY,
+    mode: "real" as const,
+  };
 }
 
 export function hasSystemKeys(): boolean {

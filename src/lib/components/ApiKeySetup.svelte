@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { AccountMode } from "$lib/etoro-api";
+
   let {
     onsubmit,
     onclear,
@@ -10,8 +12,9 @@
     lastLoaded = null,
     fromCache = false,
     compact = false,
+    mode = "real" as AccountMode,
   }: {
-    onsubmit: (apiKey: string, userKey: string) => void;
+    onsubmit: (apiKey: string, userKey: string, mode: AccountMode) => void;
     onclear?: () => void;
     onrefresh?: () => void;
     hasKeys?: boolean;
@@ -21,6 +24,7 @@
     lastLoaded?: Date | null;
     fromCache?: boolean;
     compact?: boolean;
+    mode?: AccountMode;
   } = $props();
 
   function formatLastLoaded(date: Date): string {
@@ -41,6 +45,8 @@
 
   let apiKey = $state("");
   let userKey = $state("");
+  let formModeOverride = $state<AccountMode | null>(null);
+  const formMode = $derived(formModeOverride ?? mode);
   let formOverride = $state<boolean | null>(null);
   const showForm = $derived(formOverride ?? !hasKeys);
   let revealed = $state(false);
@@ -48,7 +54,7 @@
   function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
     if (!apiKey.trim() || !userKey.trim()) return;
-    onsubmit(apiKey, userKey);
+    onsubmit(apiKey, userKey, formMode);
     formOverride = false;
     revealed = false;
   }
@@ -83,6 +89,13 @@
       </svg>
     </div>
     <span class="text-sm text-text-secondary">Using your API keys</span>
+    <span
+      class="rounded-md px-2 py-0.5 text-xs font-medium {mode === 'demo'
+        ? 'bg-brand/15 text-brand'
+        : 'bg-gain/15 text-gain'}"
+    >
+      {mode === "demo" ? "Demo" : "Real"}
+    </span>
     {#if lastLoaded}
       <span class="text-xs text-text-secondary/60">
         {fromCache ? "Cached" : "Updated"}
@@ -250,6 +263,30 @@
           <input type="checkbox" bind:checked={revealed} class="accent-brand" />
           Show keys
         </label>
+        <div
+          class="inline-flex rounded-lg border border-border bg-surface-overlay p-0.5 text-xs"
+        >
+          <button
+            type="button"
+            class="rounded-md px-2.5 py-0.5 font-medium transition-colors {formMode ===
+            'real'
+              ? 'bg-gain/15 text-gain shadow-sm'
+              : 'text-text-secondary hover:text-text-primary'}"
+            onclick={() => (formModeOverride = "real")}
+          >
+            Real
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-2.5 py-0.5 font-medium transition-colors {formMode ===
+            'demo'
+              ? 'bg-brand/15 text-brand shadow-sm'
+              : 'text-text-secondary hover:text-text-primary'}"
+            onclick={() => (formModeOverride = "demo")}
+          >
+            Demo
+          </button>
+        </div>
       </div>
 
       {#if error}

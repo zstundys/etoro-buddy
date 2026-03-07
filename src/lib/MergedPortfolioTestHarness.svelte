@@ -8,7 +8,7 @@
     clientKeys = null,
   }: {
     clientPortfolio?: PortfolioData | null;
-    clientKeys?: { apiKey: string; userKey: string } | null;
+    clientKeys?: { apiKey: string; userKey: string; mode: "real" | "demo" } | null;
   } = $props();
 
   const client = {

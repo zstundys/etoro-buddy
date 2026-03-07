@@ -3,7 +3,9 @@ import { createCache } from "./api-cache";
 
 const BASE_URL = "https://public-api.etoro.com/api/v1";
 
-export type ApiKeys = { apiKey: string; userKey: string };
+export type AccountMode = "real" | "demo";
+
+export type ApiKeys = { apiKey: string; userKey: string; mode: AccountMode };
 
 function buildHeaders(keys: ApiKeys): Record<string, string> {
   return {
@@ -45,6 +47,7 @@ const PositionSchema = z.record(z.string(), z.unknown()).transform((raw) => ({
     ["initialAmountInDollars", "InitialAmountInDollars"],
     0,
   ),
+  mirrorId: pick<number>(raw, ["mirrorID", "mirrorId", "MirrorID"], 0),
 }));
 
 const PendingOrderSchema = z
@@ -67,6 +70,47 @@ const PendingOrderSchema = z
     ),
   }));
 
+const MirrorSchema = z
+  .record(z.string(), z.unknown())
+  .transform((raw) => ({
+    mirrorId: pick<number>(raw, ["mirrorID", "mirrorId", "MirrorID"], 0),
+    parentCID: pick<number>(raw, ["parentCID", "ParentCID"], 0),
+    parentUsername: pick<string>(
+      raw,
+      ["parentUsername", "ParentUsername"],
+      "",
+    ),
+    positions: safeParseArray(
+      PositionSchema,
+      raw.positions ?? raw.Positions ?? [],
+    ),
+    ordersForOpen: safeParseArray(
+      PendingOrderSchema,
+      raw.ordersForOpen ?? raw.OrdersForOpen ?? [],
+    ),
+    isPaused: pick<boolean>(raw, ["isPaused", "IsPaused"], false),
+    initialInvestment: pick<number>(
+      raw,
+      ["initialInvestment", "InitialInvestment"],
+      0,
+    ),
+    availableAmount: pick<number>(
+      raw,
+      ["availableAmount", "AvailableAmount"],
+      0,
+    ),
+    closedPositionsNetProfit: pick<number>(
+      raw,
+      ["closedPositionsNetProfit", "ClosedPositionsNetProfit"],
+      0,
+    ),
+    startedCopyDate: pick<string>(
+      raw,
+      ["startedCopyDate", "StartedCopyDate"],
+      "",
+    ),
+  }));
+
 const PortfolioResponseSchema = z
   .object({
     clientPortfolio: z
@@ -75,8 +119,15 @@ const PortfolioResponseSchema = z
         credit: z.number().default(0),
         ordersForOpen: z.array(PendingOrderSchema).default([]),
         orders: z.array(PendingOrderSchema).default([]),
+        mirrors: z.array(MirrorSchema).default([]),
       })
-      .default({ positions: [], credit: 0, ordersForOpen: [], orders: [] }),
+      .default({
+        positions: [],
+        credit: 0,
+        ordersForOpen: [],
+        orders: [],
+        mirrors: [],
+      }),
   })
   .default({
     clientPortfolio: {
@@ -84,6 +135,7 @@ const PortfolioResponseSchema = z
       credit: 0,
       ordersForOpen: [],
       orders: [],
+      mirrors: [],
     },
   });
 
@@ -167,6 +219,7 @@ const CandleSchema = z.record(z.string(), z.unknown()).transform((raw) => ({
 
 export type Position = z.output<typeof PositionSchema>;
 export type PendingOrder = z.output<typeof PendingOrderSchema>;
+export type Mirror = z.output<typeof MirrorSchema>;
 export type Instrument = z.output<typeof InstrumentSchema>;
 export type Rate = z.output<typeof RateSchema>;
 export type Trade = z.output<typeof TradeSchema>;
@@ -180,6 +233,7 @@ export type EnrichedPosition = Position & {
   currentRate?: number;
   pnl?: number;
   pnlPercent?: number;
+  parentUsername?: string;
 };
 
 export type Watchlist = { id: string; name: string; instrumentIds: number[] };
@@ -205,9 +259,23 @@ export type EnrichedPendingOrder = PendingOrder & {
   type: "market" | "limit";
 };
 
+export type MirrorSummary = {
+  mirrorId: number;
+  parentCID: number;
+  parentUsername: string;
+  isPaused: boolean;
+  initialInvestment: number;
+  availableAmount: number;
+  closedPositionsNetProfit: number;
+  startedCopyDate: string;
+  positionCount: number;
+  totalInvested: number;
+};
+
 export type PortfolioData = {
   positions: EnrichedPosition[];
   pendingOrders: EnrichedPendingOrder[];
+  mirrors: MirrorSummary[];
   credit: number;
   availableCash: number;
   totalInvested: number;
@@ -355,6 +423,91 @@ function enrichPositions(
   return { positions, totalInvested, totalPnl };
 }
 
+async function fetchUserAvatars(
+  keys: ApiKeys,
+  cids: number[],
+): Promise<Map<number, string>> {
+  const avatarMap = new Map<number, string>();
+  if (cids.length === 0) return avatarMap;
+  try {
+    const res = await fetch(
+      `${BASE_URL}/user-info/people?cidList=${cids.join(",")}`,
+      { headers: buildHeaders(keys) },
+    );
+    if (!res.ok) return avatarMap;
+    const data = (await res.json()) as {
+      users?: Array<{
+        realCID?: number;
+        demoCID?: number;
+        avatars?: Array<{ url?: string; width?: number | string }>;
+      }>;
+    };
+    for (const user of data.users ?? []) {
+      const cid = user.realCID ?? user.demoCID;
+      if (!cid) continue;
+      const avatar =
+        user.avatars?.find((a) => Number(a.width) === 150) ??
+        user.avatars?.find((a) => Number(a.width) === 50) ??
+        user.avatars?.[0];
+      if (avatar?.url) avatarMap.set(cid, avatar.url);
+    }
+  } catch { /* avatar fetch is best-effort */ }
+  return avatarMap;
+}
+
+function aggregateMirrors(
+  mirrors: Mirror[],
+  instruments: Instrument[],
+  rates: Rate[],
+  avatarMap: Map<number, string>,
+): EnrichedPosition[] {
+  return mirrors.map((m) => {
+    const { totalInvested, totalPnl } = enrichPositions(
+      m.positions,
+      instruments,
+      rates,
+    );
+    const amount = totalInvested;
+    const pnlPercent = amount > 0 ? (totalPnl / amount) * 100 : 0;
+
+    return {
+      positionId: -m.mirrorId,
+      instrumentId: 0,
+      openRate: m.initialInvestment,
+      units: 1,
+      amount,
+      isBuy: true,
+      openDateTime: m.startedCopyDate,
+      leverage: 1,
+      totalFees: 0,
+      initialAmountInDollars: m.initialInvestment,
+      mirrorId: m.mirrorId,
+      symbol: m.parentUsername,
+      displayName: `Copy ${m.parentUsername}`,
+      logoUrl: avatarMap.get(m.parentCID) ?? undefined,
+      currentRate: undefined,
+      pnl: totalPnl,
+      pnlPercent,
+      parentUsername: m.parentUsername,
+    };
+  });
+}
+
+function buildMirrorSummaries(mirrors: Mirror[]): MirrorSummary[] {
+  return mirrors.map((m) => ({
+    mirrorId: m.mirrorId,
+    parentCID: m.parentCID,
+    parentUsername: m.parentUsername,
+    isPaused: m.isPaused,
+    initialInvestment: m.initialInvestment,
+    availableAmount: m.availableAmount,
+    closedPositionsNetProfit: m.closedPositionsNetProfit,
+    startedCopyDate: m.startedCopyDate,
+    positionCount: m.positions.length,
+    totalInvested: m.positions.reduce((sum, p) => sum + p.amount, 0),
+  }));
+}
+
 export async function fetchStocksIndustries(
   keys: ApiKeys,
 ): Promise<Map<number, string>> {
@@ -383,7 +536,11 @@ export async function fetchStocksIndustries(
 // --- Public API ---
 
 export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
-  const portfolioRes = await fetch(`${BASE_URL}/trading/info/portfolio`, {
+  const portfolioPath =
+    keys.mode === "demo"
+      ? "/trading/info/demo/portfolio"
+      : "/trading/info/portfolio";
+  const portfolioRes = await fetch(`${BASE_URL}${portfolioPath}`, {
     headers: buildHeaders(keys),
   });
 
@@ -398,7 +555,16 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
     credit,
     ordersForOpen,
     orders,
+    mirrors,
   } = parsed.clientPortfolio;
+
+  const allMirrorPositions: Position[] = [];
+  const mirrorPendingOrders: PendingOrder[] = [];
+
+  for (const m of mirrors) {
+    for (const p of m.positions) allMirrorPositions.push(p);
+    for (const o of m.ordersForOpen) mirrorPendingOrders.push(o);
+  }
 
   const pendingManualOrders = ordersForOpen
     .filter((o) => o.mirrorId === 0)
@@ -411,12 +577,20 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
       .filter((o) => o.mirrorId === 0)
       .map((o) => ({ ...o, type: "market" as const })),
     ...orders.map((o) => ({ ...o, type: "limit" as const })),
+    ...mirrorPendingOrders.map((o) => ({
+      ...o,
+      type: "market" as const,
+    })),
   ];
 
-  if (rawPositions.length === 0 && allPending.length === 0) {
+  const allRawPositions = [...rawPositions, ...allMirrorPositions];
+
+  if (allRawPositions.length === 0 && allPending.length === 0) {
+    const mirrorSummaries = buildMirrorSummaries(mirrors);
     return {
       positions: [],
       pendingOrders: [],
+      mirrors: mirrorSummaries,
       credit,
       availableCash,
       totalInvested: 0,
@@ -424,22 +598,30 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
     };
   }
 
-  const positionInstrumentIds = rawPositions.map((p) => p.instrumentId);
+  const positionInstrumentIds = allRawPositions.map((p) => p.instrumentId);
   const pendingInstrumentIds = allPending.map((o) => o.instrumentId);
   const instrumentIds = [
     ...new Set([...positionInstrumentIds, ...pendingInstrumentIds]),
   ];
 
-  const [instruments, rates] = await Promise.all([
+  const mirrorCIDs = [...new Set(mirrors.map((m) => m.parentCID).filter(Boolean))];
+
+  const [instruments, rates, avatarMap] = await Promise.all([
     fetchInstruments(keys, instrumentIds),
     fetchRates(keys, instrumentIds),
+    fetchUserAvatars(keys, mirrorCIDs),
   ]);
 
-  const { positions, totalInvested, totalPnl } = enrichPositions(
-    rawPositions,
-    instruments,
-    rates,
-  );
+  const { positions: enrichedDirect, totalInvested: directInvested, totalPnl: directPnl } =
+    enrichPositions(rawPositions, instruments, rates);
+
+  const aggregateMirrorPositions = aggregateMirrors(mirrors, instruments, rates, avatarMap);
+  const mirrorInvested = aggregateMirrorPositions.reduce((s, p) => s + p.amount, 0);
+  const mirrorPnl = aggregateMirrorPositions.reduce((s, p) => s + (p.pnl ?? 0), 0);
+
+  const positions = [...enrichedDirect, ...aggregateMirrorPositions];
+  const totalInvested = directInvested + mirrorInvested;
+  const totalPnl = directPnl + mirrorPnl;
 
   const instrumentMap = new Map(instruments.map((i) => [i.instrumentId, i]));
   const pendingOrders: EnrichedPendingOrder[] = allPending.map((o) => {
@@ -452,9 +634,12 @@ export async function fetchPortfolio(keys: ApiKeys): Promise<PortfolioData> {
     };
   });
 
+  const mirrorSummaries = buildMirrorSummaries(mirrors);
+
   return {
     positions,
     pendingOrders,
+    mirrors: mirrorSummaries,
     credit,
     availableCash,
     totalInvested,
@@ -470,8 +655,12 @@ export async function fetchTradeHistory(
     .toISOString()
     .slice(0, 10);
 
+  const tradePath =
+    keys.mode === "demo"
+      ? "/trading/info/demo/trade/history"
+      : "/trading/info/trade/history";
   const res = await fetch(
-    `${BASE_URL}/trading/info/trade/history?minDate=${minDate}&pageSize=500`,
+    `${BASE_URL}${tradePath}?minDate=${minDate}&pageSize=500`,
     { headers: buildHeaders(keys) },
   );
 
