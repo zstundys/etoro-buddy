@@ -133,10 +133,12 @@
           description="Stacked area chart showing total portfolio value each day. Each colored layer is one instrument, sized by its market value (units × closing price). Click legend items to isolate specific instruments — the Y-axis recalibrates to the selected subset."
         >
           <PortfolioValueOverTime
-            positions={filtered.positions}
+            {positions}
             {candleMap}
             {availableCash}
             {colorMap}
+            dateStart={filterStart ?? undefined}
+            dateEnd={filterEnd ?? undefined}
           />
         </ChartCard>
       {:else}

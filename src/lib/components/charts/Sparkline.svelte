@@ -115,7 +115,7 @@
     return {
       cx: scales.xScale(hoverIndex),
       cy: scales.yScale(d.value),
-      date: d3.timeFormat("%b %d")(new Date(d.date)),
+      date: d3.timeFormat("%b %d, %Y")(new Date(d.date)),
       value: d.value,
       pct,
       days,
@@ -146,8 +146,8 @@
       (new Date(end.date).getTime() - new Date(start.date).getTime()) / msPerDay,
     );
     return {
-      startDate: d3.timeFormat("%b %d")(new Date(start.date)),
-      endDate: d3.timeFormat("%b %d")(new Date(end.date)),
+      startDate: d3.timeFormat("%b %d, %Y")(new Date(start.date)),
+      endDate: d3.timeFormat("%b %d, %Y")(new Date(end.date)),
       startValue: start.value,
       endValue: end.value,
       pct,

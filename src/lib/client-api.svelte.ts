@@ -183,7 +183,7 @@ export function createClientApi() {
     candlesLoadAttempted = true;
     candlesLoading = true;
     try {
-      candles = await fetchAllCandles(keys, ids, 250);
+      candles = await fetchAllCandles(keys, ids);
     } catch {
       /* non-critical */
     } finally {
@@ -241,7 +241,7 @@ export function createClientApi() {
       watchlistInstruments = instruments;
       const ids = instruments.map((i) => i.instrumentId);
       if (ids.length > 0) {
-        watchlistCandles = await fetchAllCandles(keys, ids, 250);
+        watchlistCandles = await fetchAllCandles(keys, ids);
       }
     } catch {
       watchlistInstruments = [];

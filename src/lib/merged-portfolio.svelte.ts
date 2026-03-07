@@ -142,7 +142,7 @@ export function createMergedPortfolio(
         const [instruments, rates, candles] = await Promise.all([
           fetchInstruments(keys, instrumentIds),
           fetchRates(keys, instrumentIds),
-          fetchAllCandles(keys, instrumentIds, 250),
+          fetchAllCandles(keys, instrumentIds),
         ]);
 
         const logoMap = new Map<number, string>();

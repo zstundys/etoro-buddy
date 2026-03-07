@@ -1,5 +1,10 @@
 <script lang="ts">
-  import type { InstrumentSnapshot, Candle, Watchlist } from "$lib/etoro-api";
+  import {
+    type InstrumentSnapshot,
+    type Candle,
+    type Watchlist,
+    DEFAULT_CANDLE_COUNT,
+  } from "$lib/etoro-api";
   import { percent as pctFmt, pnlSign, normalizeSymbol } from "$lib/format";
   import { findCandleByDate, pctChange, sma } from "$lib/candle-utils";
   import TickerLink from "./TickerLink.svelte";
@@ -20,7 +25,16 @@
     selectedSource?: string;
     watchlistLoading?: boolean;
     onSourceChange?: (source: string) => void;
-    positionDates?: Map<number, { date: string; label?: string; price?: number; units?: number; amount?: number }[]>;
+    positionDates?: Map<
+      number,
+      {
+        date: string;
+        label?: string;
+        price?: number;
+        units?: number;
+        amount?: number;
+      }[]
+    >;
   } = $props();
 
   type OpportunityRow = {
@@ -205,7 +219,7 @@
     { value: "3m", label: "3M", days: 66 },
     { value: "6m", label: "6M", days: 126 },
     { value: "ytd", label: "YTD", ytd: true },
-    { value: "all", label: "All", days: 250 },
+    { value: "all", label: "All", days: DEFAULT_CANDLE_COUNT },
   ];
   let sparklineRange = $state<SparklineRange>("1m");
 
@@ -278,6 +292,7 @@
                 onclick={() => toggleSort("symbol")}
                 class="sticky left-0 z-10 cursor-pointer select-none bg-surface-raised py-2.5 pl-4 pr-3 text-left transition-colors hover:text-text-primary"
               >
+                <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
                 <div class="flex items-center justify-between gap-2 min-w-0">
                   <span>
                     Instrument
@@ -288,6 +303,7 @@
                     {/if}
                   </span>
                   {#if rows.length > 0}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div
                       class="hidden sm:flex flex-wrap gap-1 shrink-0"
                       onclick={(e) => e.stopPropagation()}
@@ -298,9 +314,10 @@
                         <button
                           type="button"
                           onclick={() => (sparklineRange = r.value)}
-                          class="rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors touch-manipulation {sparklineRange === r.value
-                            ? "bg-brand text-surface"
-                            : "text-text-secondary hover:bg-surface-overlay hover:text-text-primary"}"
+                          class="rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors touch-manipulation {sparklineRange ===
+                          r.value
+                            ? 'bg-brand text-surface'
+                            : 'text-text-secondary hover:bg-surface-overlay hover:text-text-primary'}"
                         >
                           {r.label}
                         </button>

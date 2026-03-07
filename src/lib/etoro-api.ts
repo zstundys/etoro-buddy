@@ -505,10 +505,12 @@ const candlesCache = createCache<Candle[], string>({
   keyFn: (k) => k,
 });
 
+export const DEFAULT_CANDLE_COUNT = 1000;
+
 export async function fetchCandles(
   keys: ApiKeys,
   instrumentId: number,
-  count: number = 90,
+  count: number = DEFAULT_CANDLE_COUNT,
   direction: "asc" | "desc" = "asc",
   interval: string = "OneDay",
 ): Promise<Candle[]> {
@@ -535,7 +537,7 @@ export async function fetchCandles(
 export async function fetchAllCandles(
   keys: ApiKeys,
   instrumentIds: number[],
-  count: number = 90,
+  count: number = DEFAULT_CANDLE_COUNT,
 ): Promise<Map<number, Candle[]>> {
   const result = new Map<number, Candle[]>();
   const CONCURRENCY = 5;

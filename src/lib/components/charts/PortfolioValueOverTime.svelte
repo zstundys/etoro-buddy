@@ -2,19 +2,34 @@
   import * as d3 from "d3";
   import type { EnrichedPosition, Candle } from "$lib/etoro-api";
   import { COLORS, symbolColor } from "$lib/chart-utils";
-  import { normalizeSymbol } from "$lib/format";
+  import { normalizeSymbol, currency as currencyFmt } from "$lib/format";
   import Money from "../Money.svelte";
+
+  type OpenMarker = {
+    cx: number;
+    cy: number;
+    symbol: string;
+    date: Date;
+    amount: number;
+    units: number;
+    openRate: number;
+    color: string;
+  };
 
   let {
     positions,
     candleMap,
     availableCash = 0,
     colorMap = new Map(),
+    dateStart,
+    dateEnd,
   }: {
     positions: EnrichedPosition[];
     candleMap: Map<number, Candle[]>;
     availableCash: number;
     colorMap?: Map<string, string>;
+    dateStart?: Date;
+    dateEnd?: Date;
   } = $props();
 
   let containerEl: HTMLDivElement | undefined = $state();
@@ -36,7 +51,8 @@
     date: string;
     total: number;
     breakdown: { symbol: string; value: number }[];
-  }>({ show: false, x: 0, y: 0, date: "", total: 0, breakdown: [] });
+    opens: { symbol: string; amount: number; units: number; openRate: number; color: string }[];
+  }>({ show: false, x: 0, y: 0, date: "", total: 0, breakdown: [], opens: [] });
 
   const HEIGHT = 320;
   const MARGINS = { top: 10, right: 10, bottom: 30, left: 60 };
@@ -96,7 +112,10 @@
       .map((d) => new Date(d))
       .filter((date) => {
         const prices = priceMap.get(date.toISOString().slice(0, 10));
-        return prices != null && prices.size >= minCoverage;
+        if (prices == null || prices.size < minCoverage) return false;
+        if (dateStart && date < dateStart) return false;
+        if (dateEnd && date > dateEnd) return false;
+        return true;
       });
     if (sortedDates.length === 0) return;
 
@@ -175,6 +194,55 @@
         .style("transition", "opacity 0.2s");
     });
 
+    const stackLookup = new Map<
+      string,
+      d3.Series<Record<string, number | Date>, string>
+    >();
+    for (const s of stacked) stackLookup.set(s.key, s);
+
+    const openMarkers: OpenMarker[] = [];
+    for (const p of positions) {
+      if (!p.openDateTime) continue;
+      const sym = normalizeSymbol(p.symbol ?? `#${p.instrumentId}`);
+      if (hasSelection && !sel.has(sym)) continue;
+      const openDate = new Date(p.openDateTime);
+      const dateKey = openDate.toISOString().slice(0, 10);
+      const dateIdx = sortedDates.findIndex(
+        (d) => d.toISOString().slice(0, 10) === dateKey,
+      );
+      if (dateIdx < 0) continue;
+      const series = stackLookup.get(sym);
+      if (!series) continue;
+      const point = series[dateIdx];
+      if (!point) continue;
+      openMarkers.push({
+        cx: xScale(sortedDates[dateIdx]),
+        cy: yScale(point[1]),
+        symbol: sym,
+        date: openDate,
+        amount: p.amount,
+        units: p.units,
+        openRate: p.openRate,
+        color: symbolColor(sym, colorMap),
+      });
+    }
+
+    const markerGroup = g.append("g").attr("class", "open-markers");
+    for (const m of openMarkers) {
+      const dimmed =
+        currentHover !== null && currentHover !== m.symbol;
+      markerGroup
+        .append("circle")
+        .attr("cx", m.cx)
+        .attr("cy", m.cy)
+        .attr("r", 3)
+        .attr("fill", m.color)
+        .attr("stroke", COLORS.surface)
+        .attr("stroke-width", 1.5)
+        .attr("opacity", dimmed ? 0.15 : 0.9)
+        .style("transition", "opacity 0.2s");
+    }
+
     const xAxis = d3
       .axisBottom(xScale)
       .ticks(Math.min(8, sortedDates.length))
@@ -196,6 +264,22 @@
       .attr("fill", COLORS.textSecondary)
       .attr("font-size", 10);
     g.selectAll(".domain, .tick line").attr("stroke", COLORS.border);
+
+    const markersByDate = new Map<
+      string,
+      { symbol: string; amount: number; units: number; openRate: number; color: string }[]
+    >();
+    for (const m of openMarkers) {
+      const key = m.date.toISOString().slice(0, 10);
+      if (!markersByDate.has(key)) markersByDate.set(key, []);
+      markersByDate.get(key)!.push({
+        symbol: m.symbol,
+        amount: m.amount,
+        units: m.units,
+        openRate: m.openRate,
+        color: m.color,
+      });
+    }
 
     const bisect = d3.bisector(
       (d: Record<string, number | Date>) => d.date as Date,
@@ -232,6 +316,9 @@
           .filter((b) => b.value > 0);
         const total = breakdown.reduce((s, b) => s + b.value, 0) + availableCash;
 
+        const dateKey = (row.date as Date).toISOString().slice(0, 10);
+        const opens = markersByDate.get(dateKey) ?? [];
+
         tooltip = {
           show: true,
           x: event.clientX,
@@ -239,6 +326,7 @@
           date: d3.timeFormat("%b %d, %Y")(row.date as Date),
           total,
           breakdown,
+          opens,
         };
       })
       .on("mouseleave", () => {
@@ -311,6 +399,26 @@
           >
         </div>
       {/each}
+      {#if tooltip.opens.length > 0}
+        <div class="mt-1.5 border-t border-border/40 pt-1">
+          <div class="text-[10px] font-medium text-brand">Opened</div>
+          {#each tooltip.opens as o, idx (idx)}
+            <div class="mt-0.5 flex items-center gap-1.5">
+              <span
+                class="h-2 w-2 rounded-full"
+                style="background-color: {o.color}"
+              ></span>
+              <span class="text-text-secondary">{o.symbol}</span>
+              <span class="text-text-secondary">@</span>
+              <span class="text-text-primary">{currencyFmt.format(o.openRate)}</span>
+              <span class="text-text-secondary">&times;</span>
+              <span data-private>{o.units.toFixed(o.units % 1 === 0 ? 0 : 4)}</span>
+              <span class="text-text-secondary">=</span>
+              <Money value={o.amount} />
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 </div>
