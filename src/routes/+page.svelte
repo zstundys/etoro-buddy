@@ -11,6 +11,13 @@
     Candle,
     InstrumentSnapshot,
   } from "$lib/etoro-api";
+  import type { PositionFilter } from "$lib/merged-portfolio.svelte";
+
+  const FILTER_OPTIONS: { value: PositionFilter; label: string }[] = [
+    { value: "both", label: "All" },
+    { value: "etoro", label: "eToro" },
+    { value: "manual", label: "Manual" },
+  ];
 
   let { data } = $props();
 
@@ -25,7 +32,9 @@
   );
 
   const trades = $derived<EnrichedTrade[]>(
-    useClientData ? client.trades : data.recentTrades,
+    merged.filter === "manual"
+      ? []
+      : useClientData ? client.trades : data.recentTrades,
   );
 
   const candleMap = $derived.by<Map<number, Candle[]>>(() => {
@@ -114,6 +123,25 @@
   </div>
 {:else if hasData && portfolio}
   <div class="grid gap-y-10 *:min-w-0">
+    {#if manualStore.holdings.length > 0}
+      <div class="flex items-center justify-end">
+        <div class="flex gap-1" role="radiogroup" aria-label="Position filter">
+          {#each FILTER_OPTIONS as opt (opt.value)}
+            <button
+              type="button"
+              role="radio"
+              aria-checked={merged.filter === opt.value}
+              onclick={() => merged.setFilter(opt.value)}
+              class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors {merged.filter === opt.value
+                ? 'bg-brand text-surface'
+                : 'text-text-secondary hover:bg-surface-overlay hover:text-text-primary'}"
+            >
+              {opt.label}
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
     <PortfolioSummary {portfolio} />
     <BuyingOpportunities
       instruments={opportunityInstruments}

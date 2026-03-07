@@ -18,6 +18,30 @@ type ClientApi = {
   readonly portfolio: PortfolioData | null;
 };
 
+export type PositionFilter = "both" | "etoro" | "manual";
+
+const FILTER_KEY = "position-filter";
+const VALID_FILTERS: PositionFilter[] = ["both", "etoro", "manual"];
+
+function readFilter(): PositionFilter {
+  if (typeof localStorage === "undefined") return "both";
+  try {
+    const raw = localStorage.getItem(FILTER_KEY);
+    return raw && VALID_FILTERS.includes(raw as PositionFilter)
+      ? (raw as PositionFilter)
+      : "both";
+  } catch {
+    return "both";
+  }
+}
+
+function writeFilter(value: PositionFilter): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(FILTER_KEY, value);
+  } catch { /* quota exceeded */ }
+}
+
 export function createMergedPortfolio(
   client: ClientApi,
   manual: ManualHoldingsStore,
@@ -26,6 +50,7 @@ export function createMergedPortfolio(
   let manualCandles = $state<Map<number, Candle[]>>(new Map());
   let resolving = $state(false);
   let resolved = $state(false);
+  let filter = $state<PositionFilter>(readFilter());
 
   const manualPositions = $derived<EnrichedPosition[]>(
     manual.holdings.map((h) => {
@@ -38,19 +63,26 @@ export function createMergedPortfolio(
     client.portfolio?.positions ?? [],
   );
 
+  const includeEtoro = $derived(filter === "both" || filter === "etoro");
+  const includeManual = $derived(filter === "both" || filter === "manual");
+
   const positions = $derived<EnrichedPosition[]>([
-    ...etoroPositions,
-    ...manualPositions,
+    ...(includeEtoro ? etoroPositions : []),
+    ...(includeManual ? manualPositions : []),
   ]);
 
   const totalInvested = $derived(
-    (client.portfolio?.totalInvested ?? 0) +
-      manualPositions.reduce((s, p) => s + p.amount, 0),
+    (includeEtoro ? (client.portfolio?.totalInvested ?? 0) : 0) +
+      (includeManual
+        ? manualPositions.reduce((s, p) => s + p.amount, 0)
+        : 0),
   );
 
   const totalPnl = $derived(
-    (client.portfolio?.totalPnl ?? 0) +
-      manualPositions.reduce((s, p) => s + (p.pnl ?? 0), 0),
+    (includeEtoro ? (client.portfolio?.totalPnl ?? 0) : 0) +
+      (includeManual
+        ? manualPositions.reduce((s, p) => s + (p.pnl ?? 0), 0)
+        : 0),
   );
 
   const hasData = $derived(
@@ -58,12 +90,12 @@ export function createMergedPortfolio(
   );
 
   const portfolio = $derived<PortfolioData | null>(
-    client.portfolio || manualPositions.length > 0
+    (includeEtoro && client.portfolio) || (includeManual && manualPositions.length > 0)
       ? {
           positions,
-          pendingOrders: client.portfolio?.pendingOrders ?? [],
-          credit: client.portfolio?.credit ?? 0,
-          availableCash: client.portfolio?.availableCash ?? 0,
+          pendingOrders: includeEtoro ? (client.portfolio?.pendingOrders ?? []) : [],
+          credit: includeEtoro ? (client.portfolio?.credit ?? 0) : 0,
+          availableCash: includeEtoro ? (client.portfolio?.availableCash ?? 0) : 0,
           totalInvested,
           totalPnl,
         }
@@ -129,6 +161,11 @@ export function createMergedPortfolio(
     resolveAndFetchRates();
   }
 
+  function setFilter(value: PositionFilter) {
+    filter = value;
+    writeFilter(value);
+  }
+
   return {
     get positions() {
       return positions;
@@ -152,7 +189,7 @@ export function createMergedPortfolio(
       return portfolio;
     },
     get candles() {
-      return manualCandles;
+      return includeManual ? manualCandles : new Map();
     },
     get resolving() {
       return resolving;
@@ -160,6 +197,10 @@ export function createMergedPortfolio(
     get resolved() {
       return resolved;
     },
+    get filter() {
+      return filter;
+    },
+    setFilter,
     resolveAndFetchRates,
     refresh,
   };
