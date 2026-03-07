@@ -23,6 +23,7 @@
     colorMap = new Map(),
     dateStart,
     dateEnd,
+    onrangeselect,
   }: {
     positions: EnrichedPosition[];
     candleMap: Map<number, Candle[]>;
@@ -30,12 +31,98 @@
     colorMap?: Map<string, string>;
     dateStart?: Date;
     dateEnd?: Date;
+    onrangeselect?: (start: Date, end: Date) => void;
   } = $props();
 
   let containerEl: HTMLDivElement | undefined = $state();
   let width = $state(0);
   let hoveredSymbol = $state<string | null>(null);
   let selected = $state<Set<string>>(new Set());
+
+  let dragStartIdx = $state<number | null>(null);
+  let dragEndIdx = $state<number | null>(null);
+  let mouseX = $state(0);
+  let mouseY = $state(0);
+
+  const isDragging = $derived(
+    dragStartIdx !== null && dragEndIdx !== null && dragStartIdx !== dragEndIdx,
+  );
+
+  const dragRange = $derived.by(() => {
+    if (!isDragging || dragStartIdx === null || dragEndIdx === null) return null;
+    const [lo, hi] = dragStartIdx < dragEndIdx
+      ? [dragStartIdx, dragEndIdx]
+      : [dragEndIdx, dragStartIdx];
+    if (lo >= chartRef.data.length || hi >= chartRef.data.length) return null;
+    const startDate = chartRef.data[lo]?.date as Date | undefined;
+    const endDate = chartRef.data[hi]?.date as Date | undefined;
+    if (!startDate || !endDate) return null;
+    return {
+      startLabel: d3.timeFormat("%b %d, %Y")(startDate),
+      endLabel: d3.timeFormat("%b %d, %Y")(endDate),
+    };
+  });
+
+  let chartRef: {
+    data: Record<string, number | Date>[];
+    xScale: d3.ScaleTime<number, number>;
+    bisect: d3.Bisector<Record<string, number | Date>, Date>;
+    overlay: { node(): SVGRectElement | null } | null;
+    dragHighlight: { attr(name: string, value: unknown): any } | null;
+  } = {
+    data: [],
+    xScale: d3.scaleTime(),
+    bisect: d3.bisector((d: Record<string, number | Date>) => d.date as Date),
+    overlay: null,
+    dragHighlight: null,
+  };
+
+  $effect(() => {
+    if (dragStartIdx === null) return;
+    const onMove = (e: MouseEvent) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      const rect = chartRef.overlay?.node()?.getBoundingClientRect();
+      if (!rect) return;
+      const mx = e.clientX - rect.left;
+      const x0 = chartRef.xScale.invert(mx);
+      const idx = Math.max(
+        0,
+        Math.min(chartRef.bisect.left(chartRef.data, x0), chartRef.data.length - 1),
+      );
+      dragEndIdx = idx;
+      if (dragStartIdx !== null && dragEndIdx !== null && dragStartIdx !== dragEndIdx) {
+        const [lo, hi] = dragStartIdx < dragEndIdx
+          ? [dragStartIdx, dragEndIdx]
+          : [dragEndIdx, dragStartIdx];
+        const px0 = chartRef.xScale(chartRef.data[lo].date as Date);
+        const px1 = chartRef.xScale(chartRef.data[hi].date as Date);
+        chartRef.dragHighlight?.attr("x", px0).attr("width", px1 - px0).attr("opacity", 0.15);
+      }
+    };
+    const onUp = () => {
+      if (
+        onrangeselect &&
+        dragStartIdx !== null &&
+        dragEndIdx !== null &&
+        dragStartIdx !== dragEndIdx
+      ) {
+        const [lo, hi] = dragStartIdx < dragEndIdx
+          ? [dragStartIdx, dragEndIdx]
+          : [dragEndIdx, dragStartIdx];
+        onrangeselect(chartRef.data[lo].date as Date, chartRef.data[hi].date as Date);
+      }
+      dragStartIdx = null;
+      dragEndIdx = null;
+      chartRef.dragHighlight?.attr("opacity", 0);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  });
 
   function toggleSymbol(sym: string) {
     const next = new Set(selected);
@@ -284,12 +371,27 @@
     const bisect = d3.bisector(
       (d: Record<string, number | Date>) => d.date as Date,
     ).left;
+
+    function idxFromPointer(event: MouseEvent): number {
+      const [mx] = d3.pointer(event, overlay.node());
+      const x0 = xScale.invert(mx);
+      return Math.max(0, Math.min(bisect(data, x0), data.length - 1));
+    }
+
+    const dragHighlight = g
+      .append("rect")
+      .attr("y", 0)
+      .attr("height", innerHeight)
+      .attr("fill", COLORS.brand)
+      .attr("opacity", 0);
+
     const overlay = g
       .append("rect")
       .attr("width", innerWidth)
       .attr("height", innerHeight)
       .attr("fill", "none")
-      .attr("pointer-events", "all");
+      .attr("pointer-events", "all")
+      .attr("cursor", "crosshair");
 
     const crosshair = g
       .append("line")
@@ -299,11 +401,46 @@
       .attr("stroke-dasharray", "3,3")
       .attr("opacity", 0);
 
+    chartRef = { data, xScale, bisect: d3.bisector((d: Record<string, number | Date>) => d.date as Date), overlay, dragHighlight };
+
+    function updateDragHighlight() {
+      if (dragStartIdx === null || dragEndIdx === null || dragStartIdx === dragEndIdx) {
+        dragHighlight.attr("opacity", 0);
+        return;
+      }
+      const [lo, hi] = dragStartIdx < dragEndIdx
+        ? [dragStartIdx, dragEndIdx]
+        : [dragEndIdx, dragStartIdx];
+      const x0 = xScale(data[lo].date as Date);
+      const x1 = xScale(data[hi].date as Date);
+      dragHighlight
+        .attr("x", x0)
+        .attr("width", x1 - x0)
+        .attr("opacity", 0.15);
+    }
+
     overlay
-      .on("mousemove", function (event) {
-        const [mx] = d3.pointer(event);
-        const x0 = xScale.invert(mx);
-        const i = Math.min(bisect(data, x0), data.length - 1);
+      .on("mousedown", function (event: MouseEvent) {
+        if (!onrangeselect) return;
+        const idx = idxFromPointer(event);
+        dragStartIdx = idx;
+        dragEndIdx = idx;
+        mouseX = event.clientX;
+        mouseY = event.clientY;
+      })
+      .on("mousemove", function (event: MouseEvent) {
+        mouseX = event.clientX;
+        mouseY = event.clientY;
+
+        if (dragStartIdx !== null) {
+          dragEndIdx = idxFromPointer(event);
+          updateDragHighlight();
+          crosshair.attr("opacity", 0);
+          tooltip = { ...tooltip, show: false };
+          return;
+        }
+
+        const i = idxFromPointer(event);
         const row = data[i];
         const xPos = xScale(row.date as Date);
         crosshair.attr("x1", xPos).attr("x2", xPos).attr("opacity", 1);
@@ -329,10 +466,30 @@
           opens,
         };
       })
+      .on("mouseup", function () {
+        if (
+          onrangeselect &&
+          dragStartIdx !== null &&
+          dragEndIdx !== null &&
+          dragStartIdx !== dragEndIdx
+        ) {
+          const [lo, hi] = dragStartIdx < dragEndIdx
+            ? [dragStartIdx, dragEndIdx]
+            : [dragEndIdx, dragStartIdx];
+          const startDate = data[lo].date as Date;
+          const endDate = data[hi].date as Date;
+          onrangeselect(startDate, endDate);
+        }
+        dragStartIdx = null;
+        dragEndIdx = null;
+        dragHighlight.attr("opacity", 0);
+      })
       .on("mouseleave", () => {
+        if (dragStartIdx !== null) return;
         crosshair.attr("opacity", 0);
         tooltip = { ...tooltip, show: false };
       });
+
   });
 </script>
 
@@ -419,6 +576,16 @@
           {/each}
         </div>
       {/if}
+    </div>
+  {/if}
+  {#if dragRange}
+    <div
+      class="fixed whitespace-nowrap rounded-md border border-border bg-surface-raised px-2 py-1 text-[10px] shadow-lg pointer-events-none"
+      style="left: {mouseX + 10}px; top: {mouseY - 32}px; z-index: 9999"
+    >
+      <span class="text-text-secondary">{dragRange.startLabel}</span>
+      <span class="text-text-secondary mx-1">&rarr;</span>
+      <span class="text-text-secondary">{dragRange.endLabel}</span>
     </div>
   {/if}
 </div>
