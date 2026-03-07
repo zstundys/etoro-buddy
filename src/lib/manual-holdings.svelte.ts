@@ -41,6 +41,7 @@ function hashCode(str: string): number {
 export function toEnrichedPosition(
   h: ManualHolding,
   rate?: number,
+  logoUrl?: string,
 ): EnrichedPosition {
   const amount = h.buyPrice * h.units;
   const pnl = rate !== undefined ? (rate - h.buyPrice) * h.units : undefined;
@@ -57,6 +58,7 @@ export function toEnrichedPosition(
     initialAmountInDollars: amount,
     symbol: h.symbol,
     displayName: h.symbol,
+    logoUrl,
     currentRate: rate,
     pnl,
     pnlPercent:

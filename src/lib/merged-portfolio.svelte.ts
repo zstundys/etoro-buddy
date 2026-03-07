@@ -1,5 +1,6 @@
 import {
   searchInstrumentBySymbol,
+  fetchInstruments,
   fetchRates,
   fetchAllCandles,
   type ApiKeys,
@@ -39,7 +40,9 @@ function writeFilter(value: PositionFilter): void {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(FILTER_KEY, value);
-  } catch { /* quota exceeded */ }
+  } catch {
+    /* quota exceeded */
+  }
 }
 
 export function createMergedPortfolio(
@@ -47,6 +50,7 @@ export function createMergedPortfolio(
   manual: ManualHoldingsStore,
 ) {
   let manualRates = $state<Map<number, number>>(new Map());
+  let manualLogos = $state<Map<number, string>>(new Map());
   let manualCandles = $state<Map<number, Candle[]>>(new Map());
   let resolving = $state(false);
   let resolved = $state(false);
@@ -55,7 +59,8 @@ export function createMergedPortfolio(
   const manualPositions = $derived<EnrichedPosition[]>(
     manual.holdings.map((h) => {
       const rate = h.instrumentId ? manualRates.get(h.instrumentId) : undefined;
-      return toEnrichedPosition(h, rate);
+      const logo = h.instrumentId ? manualLogos.get(h.instrumentId) : undefined;
+      return toEnrichedPosition(h, rate, logo);
     }),
   );
 
@@ -73,9 +78,7 @@ export function createMergedPortfolio(
 
   const totalInvested = $derived(
     (includeEtoro ? (client.portfolio?.totalInvested ?? 0) : 0) +
-      (includeManual
-        ? manualPositions.reduce((s, p) => s + p.amount, 0)
-        : 0),
+      (includeManual ? manualPositions.reduce((s, p) => s + p.amount, 0) : 0),
   );
 
   const totalPnl = $derived(
@@ -85,17 +88,20 @@ export function createMergedPortfolio(
         : 0),
   );
 
-  const hasData = $derived(
-    positions.length > 0,
-  );
+  const hasData = $derived(positions.length > 0);
 
   const portfolio = $derived<PortfolioData | null>(
-    (includeEtoro && client.portfolio) || (includeManual && manualPositions.length > 0)
+    (includeEtoro && client.portfolio) ||
+      (includeManual && manualPositions.length > 0)
       ? {
           positions,
-          pendingOrders: includeEtoro ? (client.portfolio?.pendingOrders ?? []) : [],
+          pendingOrders: includeEtoro
+            ? (client.portfolio?.pendingOrders ?? [])
+            : [],
           credit: includeEtoro ? (client.portfolio?.credit ?? 0) : 0,
-          availableCash: includeEtoro ? (client.portfolio?.availableCash ?? 0) : 0,
+          availableCash: includeEtoro
+            ? (client.portfolio?.availableCash ?? 0)
+            : 0,
           totalInvested,
           totalPnl,
         }
@@ -133,15 +139,21 @@ export function createMergedPortfolio(
       ];
 
       if (instrumentIds.length > 0) {
-        const [rates, candles] = await Promise.all([
+        const [instruments, rates, candles] = await Promise.all([
+          fetchInstruments(keys, instrumentIds),
           fetchRates(keys, instrumentIds),
           fetchAllCandles(keys, instrumentIds, 250),
         ]);
 
+        const logoMap = new Map<number, string>();
+        for (const inst of instruments) {
+          if (inst.logoUrl) logoMap.set(inst.instrumentId, inst.logoUrl);
+        }
         const rateMap = new Map<number, number>();
         for (const r of rates) {
           rateMap.set(r.instrumentId, r.bid);
         }
+        manualLogos = logoMap;
         manualRates = rateMap;
         manualCandles = candles;
       }
@@ -157,6 +169,7 @@ export function createMergedPortfolio(
   function refresh() {
     resolved = false;
     manualRates = new Map();
+    manualLogos = new Map();
     manualCandles = new Map();
     resolveAndFetchRates();
   }
